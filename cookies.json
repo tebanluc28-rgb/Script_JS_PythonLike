@@ -1,0 +1,85 @@
+{
+  "cookies": [
+    {
+      "name": "xf_csrf",
+      "value": "MAEd50-xGt6mbN07",
+      "domain": "animebbg.net",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga",
+      "value": "GA1.1.2022347135.1767565157",
+      "domain": ".animebbg.net",
+      "path": "/",
+      "expires": 1802125157.503063,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "cf_clearance",
+      "value": "v754WqfE_IQWpJPIpqyeC9XDEhLSJpagpm6zDNZ57JM-1767565187-1.2.1.1-rRLGMdH8ysFA9MyXXfQDV4kPqbWr5fIwwLWSCDh2v3vyDyFG5rL6bfl1n7iyllVj1k8yd26a7xVBJlujzAX5S1b1o4wLI73CIr6u0dsYp1jpmTpvrTc1.qz7KYQUKmjPlR.xJb1wbRCw61ZND7Rl.P3R.0HStld1_vGvzNBTdN7fMGkr1WzvcDZ0nw.mGblV3_1rzCwpE1Ajra6H8.S_thneAAmXTSG2kUOXkvIqFs8",
+      "domain": ".animebbg.net",
+      "path": "/",
+      "expires": 1799101157.952154,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None",
+      "partitionKey": "https://animebbg.net",
+      "_crHasCrossSiteAncestor": false
+    },
+    {
+      "name": "_ga_HQZT1S22JG",
+      "value": "GS2.1.s1767565157$o1$g0$t1767565158$j59$l0$h0",
+      "domain": ".animebbg.net",
+      "path": "/",
+      "expires": 1802125158.893366,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "xf_user",
+      "value": "20164%2CsWw1Xodum_igNiMnYtSHt4cf6XZfXi7dESlj7pPG",
+      "domain": "animebbg.net",
+      "path": "/",
+      "expires": 1799101159.493626,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "xf_session",
+      "value": "z953wPiA3qftFrojx6CZbI7q_3bMMrnF",
+      "domain": "animebbg.net",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://animebbg.net",
+      "localStorage": [
+        {
+          "name": "xf_visitorCounts",
+          "value": "{\"time\":1767565159,\"conversations_unread\":\"0\",\"alerts_unviewed\":\"0\",\"total_unread\":\"0\"}"
+        },
+        {
+          "name": "xf___crossTab",
+          "value": "{\"event\":\"visitorCounts\",\"data\":{\"conversations_unread\":\"0\",\"alerts_unviewed\":\"0\",\"total_unread\":\"0\",\"title_count\":true,\"icon_indicator\":true},\"_\":\"Sun Jan 04 2026 16:19:20 GMT-0600 (hora estándar central)0.3416017078488598\"}"
+        },
+        {
+          "name": "xf_cacheKey",
+          "value": "60356f7aa4f82ca98e605b4e87a0a057"
+        }
+      ]
+    }
+  ]
+}

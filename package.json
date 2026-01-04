@@ -1,0 +1,15 @@
+{
+  "name": "animebbg-xenforo-uploader",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node uploader_xf_animebbg2.js"
+  },
+  "devDependencies": {
+    "playwright": "1.57.0"
+  },
+  "dependencies": {
+    "dotenv": "16.6.1"
+  }
+}
