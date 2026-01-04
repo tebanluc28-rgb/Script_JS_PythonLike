@@ -1,4 +1,5 @@
 /**
+ * prueba
  * uploader_xf_animebbg2.js (Node.js)
  * Port "python-like": reads creds/config from .env; prompts only for dynamic inputs (resource/root) if missing;
  * reuses cookies via Playwright storageState; creates missing chapters; uploads images in batches; uploads only missing.
