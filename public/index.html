@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AnimeBBG Uploader</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inconsolata:wght@400;600&display=swap");
+
+      :root {
+        --bg-1: #0f172a;
+        --bg-2: #1f2937;
+        --panel: #0b1220cc;
+        --ink: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #22c55e;
+        --accent-2: #38bdf8;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(1200px 800px at 10% 10%, #1e293b 0%, #0f172a 50%, #020617 100%);
+        min-height: 100vh;
+      }
+      header {
+        padding: 32px 24px 16px;
+        text-align: center;
+      }
+      header h1 {
+        margin: 0 0 8px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      header p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        gap: 20px;
+        padding: 24px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid #1f2a44;
+        border-radius: 16px;
+        padding: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 16px 40px #02061780;
+      }
+      label {
+        display: block;
+        font-size: 0.9rem;
+        margin: 12px 0 6px;
+        color: var(--muted);
+      }
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #1f2a44;
+        background: #0b1220;
+        color: var(--ink);
+        font-size: 0.95rem;
+      }
+      input::placeholder {
+        color: #64748b;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .row > div {
+        flex: 1 1 180px;
+      }
+      .pill {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        background: #0b1220;
+        border: 1px solid #1f2a44;
+        color: var(--muted);
+      }
+      button {
+        margin-top: 16px;
+        width: 100%;
+        border: none;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1rem;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #052e16;
+        cursor: pointer;
+        transition: transform 0.15s ease, filter 0.2s ease;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.4);
+      }
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        font-size: 0.95rem;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--warn);
+      }
+      .log {
+        margin-top: 12px;
+        background: #020617;
+        border-radius: 12px;
+        border: 1px solid #111827;
+        padding: 14px;
+        height: 340px;
+        overflow: auto;
+        font-family: "Inconsolata", monospace;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+        color: #cbd5f5;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>AnimeBBG Uploader</h1>
+      <p>Sube capitulos en cola, con cookies separadas por usuario.</p>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="row">
+          <span class="pill">Paralelo fijo: 3</span>
+          <span class="pill">Cola: activada</span>
+        </div>
+
+        <label for="username">Usuario</label>
+        <input id="username" type="text" placeholder="Tu usuario" />
+
+        <label for="password">Password</label>
+        <div class="row">
+          <div>
+            <input id="password" type="password" placeholder="Tu password" />
+          </div>
+          <div>
+            <button id="togglePassword" type="button" style="margin-top: 0;">Mostrar</button>
+          </div>
+        </div>
+
+        <label for="resourceUrl">URL de la obra</label>
+        <input id="resourceUrl" type="url" placeholder="https://animebbg.net/comics/..." />
+
+        <label for="chaptersUrl">URL de capitulos (opcional)</label>
+        <input id="chaptersUrl" type="url" placeholder="https://animebbg.net/comics/.../capitulos" />
+
+        <label for="rootDir">Ruta raiz (en el servidor)</label>
+        <input id="rootDir" type="text" placeholder="/var/data/obra/" />
+
+        <div class="row">
+          <div>
+            <label for="apiUser">API User (opcional)</label>
+            <input id="apiUser" type="text" placeholder="XF user" />
+          </div>
+          <div>
+            <label for="apiKey">API Key (opcional)</label>
+            <input id="apiKey" type="password" placeholder="XF key" />
+          </div>
+          <div>
+            <button id="toggleApiKey" type="button" style="margin-top: 0;">Mostrar</button>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="secretsFile">Cargar secrets.json</label>
+            <input id="secretsFile" type="file" accept=".json" />
+          </div>
+          <div>
+            <button id="saveSecretsBtn" style="background: linear-gradient(135deg, #38bdf8, #22c55e); color: #0f172a;">Guardar API</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="rangeStart">Rango inicio (opcional)</label>
+            <input id="rangeStart" type="text" placeholder="Ej: 1" />
+          </div>
+          <div>
+            <label for="rangeEnd">Rango fin (opcional)</label>
+            <input id="rangeEnd" type="text" placeholder="Ej: 20" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <button id="startBtn">Iniciar subida</button>
+          </div>
+          <div>
+            <button id="pauseBtn" style="background: linear-gradient(135deg, #f59e0b, #f97316); color: #1f2937;">Pausar</button>
+          </div>
+          <div>
+            <button id="stopBtn" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: #1f2937;">Detener</button>
+          </div>
+        </div>
+        <p class="muted">Las cookies se guardan por usuario en el servidor para evitar relogin.</p>
+      </section>
+
+      <section class="card">
+        <div class="status">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Estado: idle</span>
+        </div>
+        <div class="log" id="logBox">Esperando...</div>
+      </section>
+    </div>
+
+    <script>
+      const startBtn = document.getElementById("startBtn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const saveSecretsBtn = document.getElementById("saveSecretsBtn");
+      const togglePassword = document.getElementById("togglePassword");
+      const toggleApiKey = document.getElementById("toggleApiKey");
+      const secretsFile = document.getElementById("secretsFile");
+      const logBox = document.getElementById("logBox");
+      const statusText = document.getElementById("statusText");
+      const statusDot = document.getElementById("statusDot");
+      let logIndex = 0;
+      let polling = false;
+
+      function setStatus(status) {
+        statusText.textContent = `Estado: ${status}`;
+        if (status === "running") statusDot.style.background = "#22c55e";
+        else if (status === "paused") statusDot.style.background = "#f59e0b";
+        else if (status === "error") statusDot.style.background = "#ef4444";
+        else if (status === "done") statusDot.style.background = "#38bdf8";
+        else statusDot.style.background = "#f59e0b";
+      }
+
+      function toggleVisibility(input, btn) {
+        if (input.type === "password") {
+          input.type = "text";
+          btn.textContent = "Ocultar";
+        } else {
+          input.type = "password";
+          btn.textContent = "Mostrar";
+        }
+      }
+
+      async function pollStatus() {
+        if (polling) return;
+        polling = true;
+        try {
+          const res = await fetch(`/api/status?from=${logIndex}`);
+          const data = await res.json();
+          setStatus(data.status || "idle");
+          if (data.status === "paused") {
+            pauseBtn.disabled = true;
+            resumeBtn.disabled = false;
+          } else if (data.status === "running") {
+            pauseBtn.disabled = false;
+            resumeBtn.disabled = true;
+          }
+          if (Array.isArray(data.logs) && data.logs.length) {
+            for (const line of data.logs) {
+              logBox.textContent += `\n${line}`;
+            }
+            logIndex = data.next;
+            logBox.scrollTop = logBox.scrollHeight;
+          }
+        } catch (err) {
+          setStatus("error");
+          logBox.textContent += `\n[ERR] ${err.message}`;
+        } finally {
+          polling = false;
+        }
+      }
+
+      async function startUpload() {
+        const payload = {
+          username: document.getElementById("username").value.trim(),
+          password: document.getElementById("password").value.trim(),
+          resourceUrl: document.getElementById("resourceUrl").value.trim(),
+          chaptersUrl: document.getElementById("chaptersUrl").value.trim(),
+          rootDir: document.getElementById("rootDir").value.trim(),
+          rangeStart: document.getElementById("rangeStart").value.trim(),
+          rangeEnd: document.getElementById("rangeEnd").value.trim(),
+          apiUser: document.getElementById("apiUser").value.trim(),
+          apiKey: document.getElementById("apiKey").value.trim(),
+        };
+        logBox.textContent = "Iniciando...";
+        logIndex = 0;
+        setStatus("starting");
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled = false;
+
+        const res = await fetch("/api/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setStatus("error");
+          logBox.textContent = data.error || "Error al iniciar.";
+          startBtn.disabled = false;
+          pauseBtn.disabled = true;
+          stopBtn.disabled = true;
+          return;
+        }
+        setStatus("running");
+      }
+
+      startBtn.addEventListener("click", () => {
+        startUpload().catch((err) => {
+          setStatus("error");
+          logBox.textContent = err.message;
+          startBtn.disabled = false;
+          pauseBtn.disabled = true;
+          stopBtn.disabled = true;
+        });
+      });
+
+      pauseBtn.addEventListener("click", async () => {
+        pauseBtn.disabled = true;
+        const res = await fetch("/api/pause", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          logBox.textContent += `\n[ERR] ${data.error || "No se pudo pausar."}`;
+          setStatus("error");
+          pauseBtn.disabled = false;
+          return;
+        }
+        setStatus("paused");
+      });
+
+      const resumeBtn = document.createElement("button");
+      resumeBtn.textContent = "Reanudar";
+      resumeBtn.style.background = "linear-gradient(135deg, #22c55e, #38bdf8)";
+      resumeBtn.style.color = "#0f172a";
+      resumeBtn.id = "resumeBtn";
+      pauseBtn.parentNode.appendChild(resumeBtn);
+      resumeBtn.disabled = true;
+
+      resumeBtn.addEventListener("click", async () => {
+        resumeBtn.disabled = true;
+        const res = await fetch("/api/resume", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          logBox.textContent += `\n[ERR] ${data.error || "No se pudo reanudar."}`;
+          setStatus("error");
+          resumeBtn.disabled = false;
+          return;
+        }
+        setStatus("running");
+        pauseBtn.disabled = false;
+      });
+
+      saveSecretsBtn.addEventListener("click", async () => {
+        const payload = {
+          apiUser: document.getElementById("apiUser").value.trim(),
+          apiKey: document.getElementById("apiKey").value.trim(),
+        };
+        const res = await fetch("/api/secrets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          logBox.textContent += `\n[ERR] ${data.error || "No se pudo guardar API."}`;
+          return;
+        }
+        logBox.textContent += "\n[INFO] API guardada en el servidor.";
+      });
+
+      togglePassword.addEventListener("click", () => {
+        toggleVisibility(document.getElementById("password"), togglePassword);
+      });
+
+      toggleApiKey.addEventListener("click", () => {
+        toggleVisibility(document.getElementById("apiKey"), toggleApiKey);
+      });
+
+      secretsFile.addEventListener("change", async (evt) => {
+        const file = evt.target.files && evt.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          if (data.apiUser) document.getElementById("apiUser").value = data.apiUser;
+          if (data.apiKey) document.getElementById("apiKey").value = data.apiKey;
+          logBox.textContent += "\n[INFO] secrets.json cargado en el formulario.";
+        } catch {
+          logBox.textContent += "\n[ERR] secrets.json invalido.";
+        }
+      });
+
+      stopBtn.addEventListener("click", async () => {
+        stopBtn.disabled = true;
+        const res = await fetch("/api/stop", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          logBox.textContent += `\n[ERR] ${data.error || "No se pudo detener."}`;
+          setStatus("error");
+          return;
+        }
+        setStatus("stopped");
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        resumeBtn.disabled = true;
+      });
+
+      setInterval(pollStatus, 1000);
+      pollStatus();
+      pauseBtn.disabled = true;
+      stopBtn.disabled = true;
+    </script>
+  </body>
+</html>

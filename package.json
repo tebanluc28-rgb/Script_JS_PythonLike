@@ -4,12 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "node uploader_xf_animebbg2.js"
+    "start": "node web_server.js",
+    "cli": "node uploader_xf_animebbg2.js"
   },
   "devDependencies": {
     "playwright": "1.57.0"
   },
   "dependencies": {
-    "dotenv": "16.6.1"
+    "dotenv": "16.6.1",
+    "express": "4.21.2"
   }
 }

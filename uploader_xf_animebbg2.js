@@ -14,7 +14,7 @@ import readline from "readline";
 import { chromium } from "playwright";
 import dotenv from "dotenv";
 
-dotenv.config({ override: true });
+dotenv.config({ override: false });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +39,7 @@ const HEADLESS = (process.env.HEADLESS ?? "true").toLowerCase() === "true";
 const SLOW_MO_MS = parseInt(process.env.SLOW_MO_MS || "0", 10);
 const TIMEOUT_MS = parseInt(process.env.TIMEOUT_MS || "30000", 10);
 const STORAGE_STATE = process.env.STORAGE_STATE || "cookies.json";
+const PAUSE_FILE = process.env.PAUSE_FILE || "";
 
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TG_CHAT = process.env.TELEGRAM_CHAT_ID || "";
@@ -102,6 +103,27 @@ async function notify(msg) {
         body: new URLSearchParams({ chat_id: TG_CHAT, text: msg }).toString(),
       });
     } catch {}
+  }
+}
+
+let pauseNotified = false;
+async function waitIfPaused() {
+  if (!PAUSE_FILE) return;
+  while (true) {
+    try {
+      if (!fs.existsSync(PAUSE_FILE)) {
+        if (pauseNotified) {
+          await notify("[INFO] Reanudado.");
+          pauseNotified = false;
+        }
+        return;
+      }
+      if (!pauseNotified) {
+        await notify("[INFO] Pausado. Esperando reanudacion...");
+        pauseNotified = true;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 1000));
   }
 }
 
@@ -193,6 +215,12 @@ function chapterNumberFromText(text) {
     return String(f).replace(/0+$/,"").replace(/\.$/,"");
   }
   return raw;
+}
+
+function toNumberMaybe(val) {
+  if (val === null || val === undefined || val === "") return null;
+  const n = Number(String(val).replace(",", "."));
+  return Number.isNaN(n) ? null : n;
 }
 
 function displayTextFor(num) {
@@ -738,6 +766,7 @@ async function waitUploadsComplete(page, expected, maxWaitMs=180000) {
 
 async function uploadImagesInBatches(page, files, batchSize=BATCH_UPLOAD_SIZE, queueUploads=false) {
   if (!files.length) return;
+  await waitIfPaused();
   const already = await countUploadedImages(page);
   await notify(`  [INFO] Iniciando subida de ${files.length} imágenes (ya subidas: ${already})`);
 
@@ -755,6 +784,7 @@ async function uploadImagesInBatches(page, files, batchSize=BATCH_UPLOAD_SIZE, q
   let done = already;
   const totalBatches = Math.ceil(files.length / batchSize);
   for (let i=0; i<files.length; i += batchSize) {
+    await waitIfPaused();
     const batch = files.slice(i, i+batchSize);
     await notify(`  · Subiendo lote ${Math.floor(i/batchSize)+1}/${totalBatches} (${batch.length} archivos)`);
     await page.setInputFiles(finput, batch);
@@ -902,6 +932,7 @@ async function chapterExistsInSite(page, chaptersListUrl, chapterNumber) {
 
 // ===== process a chapter =====
 async function processOneChapter(page, chaptersListUrl, resourceUrl, chapterNumber, chapterDir, queueUploads) {
+  await waitIfPaused();
   const images = listImages(chapterDir);
   if (!images.length) { await notify(`[OMITIDO] ${path.basename(chapterDir)}: sin imágenes`); return; }
 
@@ -1104,6 +1135,8 @@ async function main() {
 
   const onlyChapters = (args["chapters"] || "").trim();
   const onlyList = onlyChapters ? onlyChapters.split(",").map(s => s.trim()).filter(Boolean) : null;
+  const rangeStart = toNumberMaybe(args["start"] || args["from"] || process.env.RANGE_START || "");
+  const rangeEnd = toNumberMaybe(args["end"] || args["to"] || process.env.RANGE_END || "");
 
   const parallel = Math.max(1, parseInt(args["parallel"] || String(DEFAULT_PARALLEL), 10));
   const saveRetries = parseInt(args["save-retries"] || String(SAVE_MAX_RETRIES), 10);
@@ -1126,6 +1159,9 @@ async function main() {
   console.log(`USUARIO (login):   ${USERNAME}`);
   console.log(`PARALELO:          ${parallel}`);
   console.log(`VERIFY_RETRIES:    ${verifyRounds}`);
+  if (rangeStart !== null || rangeEnd !== null) {
+    console.log(`RANGO:             ${rangeStart ?? "-"} -> ${rangeEnd ?? "-"}`);
+  }
   console.log("============================\n");
 
   // discovery stage (single browser) + save cookies once to reduce repeated logins later
@@ -1141,7 +1177,15 @@ async function main() {
   console.log("✅ Sesión OK (storage guardado)");
 
   console.log("➡️  Resolviendo capítulos a procesar…");
-  const jobsList = await planJobs(page, rootDir, chaptersListUrl, onlyList);
+  let jobsList = await planJobs(page, rootDir, chaptersListUrl, onlyList);
+  if (rangeStart !== null || rangeEnd !== null) {
+    const min = rangeStart !== null ? rangeStart : -Infinity;
+    const max = rangeEnd !== null ? rangeEnd : Infinity;
+    jobsList = jobsList.filter(([num]) => {
+      const n = toNumberMaybe(num);
+      return n !== null && n >= min && n <= max;
+    });
+  }
   console.log(`📦 Capítulos a procesar: ${jobsList.length}`);
   if (!jobsList.length) {
     console.log("No hay trabajo que hacer.");
