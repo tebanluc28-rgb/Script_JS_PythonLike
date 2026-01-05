@@ -32,6 +32,8 @@ const MAX_PER_CHAPTER = parseInt(process.env.MAX_PER_CHAPTER || "30", 10);
 
 const BATCH_UPLOAD_SIZE = parseInt(process.env.BATCH_UPLOAD_SIZE || "15", 10);
 const SLEEP_BETWEEN_BATCH_MS = parseInt(process.env.SLEEP_BETWEEN_BATCH_MS || "400", 10);
+const QUEUE_UPLOADS = (process.env.QUEUE_UPLOADS || "0").toLowerCase() === "1"
+  || (process.env.QUEUE_UPLOADS || "0").toLowerCase() === "true";
 
 const HEADLESS = (process.env.HEADLESS ?? "true").toLowerCase() === "true";
 const SLOW_MO_MS = parseInt(process.env.SLOW_MO_MS || "0", 10);
@@ -593,6 +595,40 @@ async function countSavedImages(page) {
   }
 }
 
+async function countSavedImagesAccurate(page, opts = {}) {
+  const shouldScroll = opts.scroll !== false;
+  const maxRounds = Number.isFinite(opts.maxRounds) ? opts.maxRounds : 12;
+  try {
+    await page.waitForTimeout(500);
+    const loc = page.locator("img[src*='/attachments/'], img[data-src*='/attachments/'], .js-lbImage img");
+    const readUniqueCount = async () => {
+      const urls = await loc.evaluateAll(els =>
+        els.map(e => (e.getAttribute("data-src") || e.getAttribute("src") || "").split("?")[0]).filter(Boolean)
+      );
+      return new Set(urls).size;
+    };
+
+    let best = await readUniqueCount();
+    if (shouldScroll) {
+      let stable = 0;
+      for (let i = 0; i < maxRounds; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(450);
+        const cur = await readUniqueCount();
+        if (cur <= best) stable += 1;
+        else { best = cur; stable = 0; }
+        if (stable >= 2) break;
+      }
+    }
+
+    dbg(`Imagenes guardadas detectadas (unique): ${best}`);
+    return best;
+  } catch (e) {
+    dbg(`Error contando imagenes guardadas: ${e}`);
+    return 0;
+  }
+}
+
 async function verifyChapterImages(page, chaptersListUrl, chapterText, expectedCount, chapterId) {
   if (XENFORO_API_KEY && chapterId) {
     const apiCount = await verifyChapterImagesViaApi(chapterId);
@@ -609,7 +645,7 @@ async function verifyChapterImages(page, chaptersListUrl, chapterText, expectedC
     const { ok } = await openChapterFromList(page, chaptersListUrl, chapterText, null, 2);
     if (!ok) return false;
     await page.waitForTimeout(1000);
-    const count = await countSavedImages(page);
+    const count = await countSavedImagesAccurate(page, { scroll: true });
     dbg(`Verificación web ${chapterText}: encontradas ${count} imágenes (esperadas: ${expectedCount})`);
     if (count === 0) { await notify(`[WEB-ERROR] ${chapterText} NO TIENE IMÁGENES después de guardar!`); return false; }
     if (count < expectedCount * 0.8) { await notify(`[WEB-WARN] ${chapterText} tiene solo ${count} imágenes (esperadas: ${expectedCount})`); return false; }
@@ -700,7 +736,7 @@ async function waitUploadsComplete(page, expected, maxWaitMs=180000) {
   throw new Error(`Las subidas no finalizaron a tiempo (esperaba ${expected} imágenes).`);
 }
 
-async function uploadImagesInBatches(page, files, batchSize=BATCH_UPLOAD_SIZE) {
+async function uploadImagesInBatches(page, files, batchSize=BATCH_UPLOAD_SIZE, queueUploads=false) {
   if (!files.length) return;
   const already = await countUploadedImages(page);
   await notify(`  [INFO] Iniciando subida de ${files.length} imágenes (ya subidas: ${already})`);
@@ -715,6 +751,7 @@ async function uploadImagesInBatches(page, files, batchSize=BATCH_UPLOAD_SIZE) {
     });
   } catch {}
 
+  if (queueUploads) batchSize = 1;
   let done = already;
   const totalBatches = Math.ceil(files.length / batchSize);
   for (let i=0; i<files.length; i += batchSize) {
@@ -864,7 +901,7 @@ async function chapterExistsInSite(page, chaptersListUrl, chapterNumber) {
 }
 
 // ===== process a chapter =====
-async function processOneChapter(page, chaptersListUrl, resourceUrl, chapterNumber, chapterDir) {
+async function processOneChapter(page, chaptersListUrl, resourceUrl, chapterNumber, chapterDir, queueUploads) {
   const images = listImages(chapterDir);
   if (!images.length) { await notify(`[OMITIDO] ${path.basename(chapterDir)}: sin imágenes`); return; }
 
@@ -916,7 +953,7 @@ async function processOneChapter(page, chaptersListUrl, resourceUrl, chapterNumb
 
   await notify(`[CONFIRMADO] En ${chapterText} (ID: ${chapterId}) - Verificando imágenes...`);
 
-  const alreadySaved = await countSavedImages(page);
+  const alreadySaved = await countSavedImagesAccurate(page, { scroll: true });
   if (alreadySaved >= expectedTotal) {
     await notify(`[OK] ${chapterText} (ID: ${chapterId}): ya tiene ${alreadySaved} imágenes (esperadas: ${expectedTotal}), omitiendo subida`);
     return;
@@ -931,7 +968,7 @@ async function processOneChapter(page, chaptersListUrl, resourceUrl, chapterNumb
   if (!okBtn) throw new Error("No se encontró botón 'Subir imágenes'.");
   await openUploadArea(page);
 
-  await uploadImagesInBatches(page, partFiles, BATCH_UPLOAD_SIZE);
+  await uploadImagesInBatches(page, partFiles, BATCH_UPLOAD_SIZE, queueUploads);
 
   const saved = await guardarWithRetry(page, SAVE_MAX_RETRIES, SAVE_MAX_WINDOW_S);
   if (saved) {
@@ -959,7 +996,7 @@ async function findMissingWork(page, chaptersListUrl, jobsList) {
       const chapterText = displayTextFor(num);
       const opened = await openChapterFromList(page, chaptersListUrl, chapterText, null, 2);
       if (!opened.ok) { missing.push([num, dir]); continue; }
-      const actual = await countSavedImages(page);
+      const actual = await countSavedImagesAccurate(page, { scroll: true });
       if (actual < imgs.length * 0.8) {
         await notify(`  [INFO] ${chapterText} tiene ${actual}/${imgs.length} imágenes, marcando para re-subida`);
         missing.push([num, dir]);
@@ -1019,7 +1056,7 @@ async function workerUpload(job, settings) {
     await ensureLogin(page, context);
 
     console.log(`➡️  [${num}] Subiendo… (${path.basename(chapterDir)})`);
-    await processOneChapter(page, settings.CHAPTERS_LIST_URL, settings.RESOURCE_URL, num, chapterDir);
+    await processOneChapter(page, settings.CHAPTERS_LIST_URL, settings.RESOURCE_URL, num, chapterDir, settings.QUEUE_UPLOADS);
     console.log(`✅ [${num}] Listo (${path.basename(chapterDir)})`);
 
     await page.waitForTimeout(1000);
@@ -1072,6 +1109,7 @@ async function main() {
   const saveRetries = parseInt(args["save-retries"] || String(SAVE_MAX_RETRIES), 10);
   const saveWindow = parseInt(args["save-window"] || String(SAVE_MAX_WINDOW_S), 10);
   const verifyRounds = parseInt(args["verify-retries"] || String(VERIFY_RETRIES), 10);
+  const queueUploads = Boolean(args["queue"]) || QUEUE_UPLOADS;
 
   console.log("\n=== Parámetros efectivos ===");
   console.log(`BASE_URL:          ${BASE_URL}`);
@@ -1082,6 +1120,7 @@ async function main() {
   console.log(`MAX_PER_CHAPTER:   ${MAX_PER_CHAPTER}`);
   console.log(`BATCH_UPLOAD_SIZE: ${BATCH_UPLOAD_SIZE}`);
   console.log(`SLEEP_BETWEEN_MS:  ${SLEEP_BETWEEN_BATCH_MS}`);
+  console.log(`QUEUE_UPLOADS:     ${queueUploads}`);
   console.log(`SAVE_MAX_RETRIES:  ${saveRetries}`);
   console.log(`SAVE_MAX_WINDOW_S: ${saveWindow}`);
   console.log(`USUARIO (login):   ${USERNAME}`);
@@ -1122,6 +1161,7 @@ async function main() {
     SAVE_MAX_RETRIES: saveRetries,
     SAVE_MAX_WINDOW_S: saveWindow,
     storagePath: storageStatePathIfExists(), // load, do not write in workers
+    QUEUE_UPLOADS: queueUploads,
   };
 
   if (parallel === 1) {
@@ -1156,7 +1196,7 @@ async function main() {
     for (const [num, dir] of missing) {
       try {
         await notify(`↻ Re-subiendo faltantes: ${path.basename(dir)} (cap ${num})`);
-        await processOneChapter(p, chaptersListUrl, resourceUrl, num, dir);
+        await processOneChapter(p, chaptersListUrl, resourceUrl, num, dir, queueUploads);
       } catch (e) {
         await notify(`[ERROR] Re-subiendo ${path.basename(dir)}: ${e}`);
       }
