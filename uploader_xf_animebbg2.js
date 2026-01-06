@@ -11,6 +11,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import readline from "readline";
+import os from "os";
 import { chromium } from "playwright";
 import dotenv from "dotenv";
 
@@ -39,6 +40,7 @@ const HEADLESS = (process.env.HEADLESS ?? "true").toLowerCase() === "true";
 const SLOW_MO_MS = parseInt(process.env.SLOW_MO_MS || "0", 10);
 const TIMEOUT_MS = parseInt(process.env.TIMEOUT_MS || "30000", 10);
 const STORAGE_STATE = process.env.STORAGE_STATE || "cookies.json";
+const LEGACY_CHROME_PATH = process.env.LEGACY_CHROME_PATH || "";
 const PAUSE_FILE = process.env.PAUSE_FILE || "";
 
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
@@ -81,6 +83,50 @@ function parseArgs(argv) {
 function dbg(msg) { if (DEBUG) console.log(`[DEBUG] ${msg}`); }
 
 function ensureDir(p) { fs.mkdirSync(p, { recursive: true }); }
+
+function isLegacyWindows() {
+  if (process.platform !== "win32") return false;
+  const rel = os.release(); // 6.1 = Win7, 6.2/6.3 = Win8/8.1
+  return rel.startsWith("6.1");
+}
+
+function findLegacyChromePath() {
+  if (LEGACY_CHROME_PATH && fs.existsSync(LEGACY_CHROME_PATH)) return LEGACY_CHROME_PATH;
+  const candidates = [
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Chromium\\chrome.exe",
+    "C:\\Chrome\\chrome.exe",
+  ];
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p; } catch {}
+  }
+  return "";
+}
+
+function getChromiumLaunchOptions() {
+  const options = {
+    headless: HEADLESS,
+    slowMo: SLOW_MO_MS,
+    args: [
+      "--disable-extensions",
+      "--disable-background-timer-throttling",
+      "--disable-renderer-backgrounding",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--disable-features=TranslateUI",
+    ],
+  };
+  if (isLegacyWindows()) {
+    const legacyPath = findLegacyChromePath();
+    if (legacyPath) {
+      options.executablePath = legacyPath;
+      console.log(`[INFO] Win7 detectado. Usando Chromium/Chrome externo: ${legacyPath}`);
+    } else {
+      console.log("[WARN] Win7 detectado y no se encontro Chrome/Chromium. Es probable que falle.");
+    }
+  }
+  return options;
+}
 
 async function snap(page, name) {
   if (!DEBUG) return;
@@ -1056,17 +1102,7 @@ async function workerUpload(job, settings) {
   const [num, chapterDir] = job;
   let browser = null, context = null, page = null;
   try {
-    browser = await chromium.launch({
-      headless: settings.HEADLESS,
-      slowMo: settings.SLOW_MO_MS,
-      args: [
-        "--disable-extensions",
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "--disable-features=IsolateOrigins,site-per-process",
-        "--disable-features=TranslateUI",
-      ],
-    });
+    browser = await chromium.launch(getChromiumLaunchOptions());
 
     const storagePath = settings.storagePath;
     context = await browser.newContext(storagePath ? { storageState: storagePath } : {});
@@ -1166,7 +1202,7 @@ async function main() {
 
   // discovery stage (single browser) + save cookies once to reduce repeated logins later
   console.log("➡️  Lanzando Chromium (descubrimiento)…");
-  const browser = await chromium.launch({ headless: HEADLESS, slowMo: SLOW_MO_MS });
+  const browser = await chromium.launch(getChromiumLaunchOptions());
   const storagePath = storageStatePathIfExists();
   const context = await browser.newContext(storagePath ? { storageState: storagePath } : {});
   const page = await context.newPage();
@@ -1226,7 +1262,7 @@ async function main() {
   // verify rounds
   for (let round = 1; round <= verifyRounds; round++) {
     await notify(`\n🔎 Verificación ronda ${round}/${verifyRounds}…`);
-    const b = await chromium.launch({ headless: HEADLESS, slowMo: SLOW_MO_MS });
+    const b = await chromium.launch(getChromiumLaunchOptions());
     const c = await b.newContext(storageStatePathIfExists() ? { storageState: storageStatePathIfExists() } : {});
     const p = await c.newPage();
     p.setDefaultTimeout(TIMEOUT_MS);

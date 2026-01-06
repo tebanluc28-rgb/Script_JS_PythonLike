@@ -170,9 +170,6 @@
         <label for="resourceUrl">URL de la obra</label>
         <input id="resourceUrl" type="url" placeholder="https://animebbg.net/comics/..." />
 
-        <label for="chaptersUrl">URL de capitulos (opcional)</label>
-        <input id="chaptersUrl" type="url" placeholder="https://animebbg.net/comics/.../capitulos" />
-
         <label for="rootDir">Ruta raiz (en el servidor)</label>
         <input id="rootDir" type="text" placeholder="/var/data/obra/" />
 
@@ -215,6 +212,9 @@
             <button id="startBtn">Iniciar subida</button>
           </div>
           <div>
+            <button id="enqueueBtn" type="button" style="background: linear-gradient(135deg, #38bdf8, #22c55e); color: #0f172a;">Agregar a cola</button>
+          </div>
+          <div>
             <button id="pauseBtn" style="background: linear-gradient(135deg, #f59e0b, #f97316); color: #1f2937;">Pausar</button>
           </div>
           <div>
@@ -228,24 +228,32 @@
         <div class="status">
           <span class="dot" id="statusDot"></span>
           <span id="statusText">Estado: idle</span>
+          <span id="queueText" class="pill">Cola: 0</span>
         </div>
+        <div class="muted" id="queueItems">En cola: (vacía)</div>
+        <div id="queueList"></div>
         <div class="log" id="logBox">Esperando...</div>
       </section>
     </div>
 
     <script>
       const startBtn = document.getElementById("startBtn");
+      const enqueueBtn = document.getElementById("enqueueBtn");
       const pauseBtn = document.getElementById("pauseBtn");
       const stopBtn = document.getElementById("stopBtn");
       const saveSecretsBtn = document.getElementById("saveSecretsBtn");
       const togglePassword = document.getElementById("togglePassword");
       const toggleApiKey = document.getElementById("toggleApiKey");
       const secretsFile = document.getElementById("secretsFile");
+      const queueText = document.getElementById("queueText");
+      const queueItems = document.getElementById("queueItems");
+      const queueList = document.getElementById("queueList");
       const logBox = document.getElementById("logBox");
       const statusText = document.getElementById("statusText");
       const statusDot = document.getElementById("statusDot");
       let logIndex = 0;
       let polling = false;
+      let lastQueueCount = 0;
 
       function setStatus(status) {
         statusText.textContent = `Estado: ${status}`;
@@ -254,6 +262,70 @@
         else if (status === "error") statusDot.style.background = "#ef4444";
         else if (status === "done") statusDot.style.background = "#38bdf8";
         else statusDot.style.background = "#f59e0b";
+      }
+
+      function validateRequired(payload) {
+        if (!payload.username || !payload.password || !payload.resourceUrl || !payload.rootDir) {
+          logBox.textContent += "\n[ERR] Completa Usuario, Password, URL de la obra y Ruta raiz.";
+          return false;
+        }
+        return true;
+      }
+
+      function escapeHtml(str) {
+        return String(str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function renderQueue(items) {
+        if (!queueList) return;
+        if (!items || !items.length) {
+          queueList.innerHTML = "";
+          return;
+        }
+        const rows = items.map((it) => {
+          const idx = it.index;
+          return `
+            <div class="card" style="margin-top: 10px; padding: 12px;">
+              <div class="row">
+                <div>
+                  <label>URL obra</label>
+                  <input id="q-url-${idx}" type="text" value="${escapeHtml(it.resourceUrl)}" />
+                </div>
+                <div>
+                  <label>Ruta raíz</label>
+                  <input id="q-root-${idx}" type="text" value="${escapeHtml(it.rootDir)}" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>Rango inicio</label>
+                  <input id="q-start-${idx}" type="text" value="${escapeHtml(it.rangeStart)}" />
+                </div>
+                <div>
+                  <label>Rango fin</label>
+                  <input id="q-end-${idx}" type="text" value="${escapeHtml(it.rangeEnd)}" />
+                </div>
+                <div>
+                  <button data-action="save" data-index="${idx}" type="button">Guardar</button>
+                </div>
+                <div>
+                  <button data-action="up" data-index="${idx}" type="button">Subir</button>
+                </div>
+                <div>
+                  <button data-action="down" data-index="${idx}" type="button">Bajar</button>
+                </div>
+                <div>
+                  <button data-action="delete" data-index="${idx}" type="button" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: #1f2937;">Eliminar</button>
+                </div>
+              </div>
+            </div>`;
+        }).join("");
+        queueList.innerHTML = rows;
       }
 
       function toggleVisibility(input, btn) {
@@ -273,6 +345,14 @@
           const res = await fetch(`/api/status?from=${logIndex}`);
           const data = await res.json();
           setStatus(data.status || "idle");
+          if (queueText) queueText.textContent = `Cola: ${data.queue || 0}`;
+          lastQueueCount = data.queue || 0;
+          if (queueItems) {
+            const items = Array.isArray(data.queueItems) ? data.queueItems : [];
+            const labels = items.map((i) => i.resourceUrl || "").filter(Boolean);
+            queueItems.textContent = labels.length ? `En cola: ${labels.join(" | ")}` : "En cola: (vacía)";
+            renderQueue(items);
+          }
           if (data.status === "paused") {
             pauseBtn.disabled = true;
             resumeBtn.disabled = false;
@@ -300,13 +380,41 @@
           username: document.getElementById("username").value.trim(),
           password: document.getElementById("password").value.trim(),
           resourceUrl: document.getElementById("resourceUrl").value.trim(),
-          chaptersUrl: document.getElementById("chaptersUrl").value.trim(),
           rootDir: document.getElementById("rootDir").value.trim(),
           rangeStart: document.getElementById("rangeStart").value.trim(),
           rangeEnd: document.getElementById("rangeEnd").value.trim(),
           apiUser: document.getElementById("apiUser").value.trim(),
           apiKey: document.getElementById("apiKey").value.trim(),
         };
+        const missingRequired = !payload.username || !payload.password || !payload.resourceUrl || !payload.rootDir;
+        if (missingRequired) {
+          if (!lastQueueCount) {
+            validateRequired(payload);
+            return;
+          }
+          logBox.textContent = "Iniciando cola...";
+          logIndex = 0;
+          setStatus("starting");
+          startBtn.disabled = true;
+          pauseBtn.disabled = false;
+          stopBtn.disabled = false;
+          const res = await fetch("/api/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ startQueueOnly: true }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            setStatus("error");
+            logBox.textContent = data.error || "Error al iniciar la cola.";
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            stopBtn.disabled = true;
+            return;
+          }
+          setStatus("running");
+          return;
+        }
         logBox.textContent = "Iniciando...";
         logIndex = 0;
         setStatus("starting");
@@ -331,6 +439,36 @@
         setStatus("running");
       }
 
+      async function enqueueUpload() {
+        const payload = {
+          username: document.getElementById("username").value.trim(),
+          password: document.getElementById("password").value.trim(),
+          resourceUrl: document.getElementById("resourceUrl").value.trim(),
+          rootDir: document.getElementById("rootDir").value.trim(),
+          rangeStart: document.getElementById("rangeStart").value.trim(),
+          rangeEnd: document.getElementById("rangeEnd").value.trim(),
+          apiUser: document.getElementById("apiUser").value.trim(),
+          apiKey: document.getElementById("apiKey").value.trim(),
+          enqueueOnly: true,
+        };
+        if (!validateRequired(payload)) return;
+        const res = await fetch("/api/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          logBox.textContent += `\n[ERR] ${data.error || "No se pudo agregar a la cola."}`;
+          return;
+        }
+        logBox.textContent += "\n[INFO] Agregado a la cola.";
+        document.getElementById("resourceUrl").value = "";
+        document.getElementById("rootDir").value = "";
+        document.getElementById("rangeStart").value = "";
+        document.getElementById("rangeEnd").value = "";
+      }
+
       startBtn.addEventListener("click", () => {
         startUpload().catch((err) => {
           setStatus("error");
@@ -338,6 +476,12 @@
           startBtn.disabled = false;
           pauseBtn.disabled = true;
           stopBtn.disabled = true;
+        });
+      });
+
+      enqueueBtn.addEventListener("click", () => {
+        enqueueUpload().catch((err) => {
+          logBox.textContent += `\n[ERR] ${err.message}`;
         });
       });
 
@@ -429,6 +573,64 @@
         startBtn.disabled = false;
         pauseBtn.disabled = true;
         resumeBtn.disabled = true;
+      });
+
+      queueList.addEventListener("click", async (evt) => {
+        const btn = evt.target.closest("button");
+        if (!btn) return;
+        const idx = parseInt(btn.getAttribute("data-index"), 10);
+        const action = btn.getAttribute("data-action");
+        if (!Number.isFinite(idx)) return;
+
+        if (action === "save") {
+          const payload = {
+            username: document.getElementById("username").value.trim(),
+            password: document.getElementById("password").value.trim(),
+            resourceUrl: document.getElementById(`q-url-${idx}`).value.trim(),
+            rootDir: document.getElementById(`q-root-${idx}`).value.trim(),
+            rangeStart: document.getElementById(`q-start-${idx}`).value.trim(),
+            rangeEnd: document.getElementById(`q-end-${idx}`).value.trim(),
+            apiUser: document.getElementById("apiUser").value.trim(),
+            apiKey: document.getElementById("apiKey").value.trim(),
+          };
+          const res = await fetch("/api/queue/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index: idx, payload }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            logBox.textContent += `\n[ERR] ${data.error || "No se pudo guardar."}`;
+            return;
+          }
+          logBox.textContent += "\n[INFO] Item actualizado.";
+          return;
+        }
+
+        if (action === "delete") {
+          const res = await fetch("/api/queue/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index: idx }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            logBox.textContent += `\n[ERR] ${data.error || "No se pudo eliminar."}`;
+          }
+          return;
+        }
+
+        if (action === "up" || action === "down") {
+          const res = await fetch("/api/queue/move", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index: idx, direction: action }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            logBox.textContent += `\n[ERR] ${data.error || "No se pudo mover."}`;
+          }
+        }
       });
 
       setInterval(pollStatus, 1000);
