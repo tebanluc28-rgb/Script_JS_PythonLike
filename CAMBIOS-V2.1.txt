@@ -1,0 +1,79 @@
+========================================
+  AnimeBBG Uploader - Versión 2.1
+  CORRECCIÓN DE NOTIFICACIONES MANUALES
+========================================
+
+FECHA: 15 de Febrero 2025
+
+PROBLEMA CORREGIDO:
+-------------------
+Las notificaciones manuales generaban enlaces incorrectos que no
+coincidían con los IDs únicos de los capítulos en la base de datos.
+
+EJEMPLO DEL PROBLEMA:
+- Usuario selecciona: Capítulo 312
+- Enlace incorrecto generado: /capitulo-312
+- Enlace correcto requerido: /comics/capitulo/link/12204/
+
+SOLUCIÓN IMPLEMENTADA:
+----------------------
+1. Búsqueda inteligente del capítulo en múltiples páginas del paginado
+2. Extracción del ID único real desde el HTML de la página
+3. Generación del enlace correcto con el ID de la base de datos
+4. Sincronización entre vista previa y publicación final
+
+ARCHIVOS MODIFICADOS:
+---------------------
+✅ notification_preview.js
+   - Navega a la página correcta del paginado donde está el capítulo
+   - Busca el capítulo usando múltiples patrones de texto
+   - Extrae el href con el ID único (/comics/capitulo/link/XXXXX/)
+   - Genera vista previa con el enlace correcto
+
+✅ notification_publisher.js
+   - Usa la misma lógica de búsqueda que preview
+   - Garantiza que el enlace publicado sea idéntico a la vista previa
+   - Logs detallados para debugging
+
+MEJORAS TÉCNICAS:
+-----------------
+• Búsqueda en múltiples páginas (estimada, anterior, siguiente)
+• Patrones de búsqueda flexibles: "Capítulo X", "Cap. X", "Cap X"
+• Regex con límites de palabra para evitar falsos positivos
+• Limpieza de texto (espacios, saltos de línea)
+• Logs detallados para trazabilidad
+
+CÓMO FUNCIONA AHORA:
+--------------------
+1. Usuario selecciona "Capítulo 312"
+2. Sistema calcula: 312 ÷ 10 = página 32 (aprox)
+3. Busca en páginas: 32, 31, 33, 1
+4. En cada página, busca enlaces <a href="/capitulo/link/...">
+5. Compara el texto del enlace con "Capítulo 312"
+6. Cuando encuentra coincidencia, extrae: /comics/capitulo/link/12204/
+7. Usa ese enlace en la notificación
+
+ARCHIVOS DEL PAQUETE:
+---------------------
+📦 AnimeBBG-Portable-V2-FIXED.zip (36 MB)
+   ├── notification_preview.js (actualizado)
+   ├── notification_publisher.js (actualizado)
+   ├── web_server.js
+   ├── uploader_xf_animebbg2.js
+   ├── drive_download.js
+   ├── public/ (interfaz web)
+   ├── nodejs-portable/ (Node.js incluido)
+   └── AnimeBBG-Uploader.bat (ejecutable)
+
+USO:
+----
+1. Descomprimir AnimeBBG-Portable-V2-FIXED.zip
+2. Ejecutar AnimeBBG-Uploader.bat
+3. Abrir http://localhost:3000
+4. Usar notificaciones manuales normalmente
+
+NOTA: Los enlaces ahora se generan correctamente tanto en la vista
+previa como en la publicación final, usando el ID único real del
+capítulo desde la base de datos del sitio.
+
+========================================

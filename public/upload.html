@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Subida de Archivos - AnimeBBG</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inconsolata:wght@400;600&display=swap");
+
+      :root {
+        --bg-1: #0f172a;
+        --bg-2: #1f2937;
+        --panel: #0b1220cc;
+        --ink: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #22c55e;
+        --accent-2: #38bdf8;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(1200px 800px at 10% 10%, #1e293b 0%, #0f172a 50%, #020617 100%);
+        min-height: 100vh;
+      }
+      header {
+        padding: 28px 24px 8px;
+        text-align: center;
+      }
+      header h1 {
+        margin: 0 0 6px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      header p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 20px 24px 40px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid #1f2a44;
+        border-radius: 16px;
+        padding: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 16px 40px #02061780;
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        font-size: 0.9rem;
+        margin: 12px 0 6px;
+        color: var(--muted);
+      }
+      input, select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #1f2a44;
+        background: #0b1220;
+        color: var(--ink);
+        font-size: 0.95rem;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .row > div {
+        flex: 1 1 260px;
+      }
+      button {
+        margin-top: 16px;
+        width: 100%;
+        border: none;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1rem;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #052e16;
+        cursor: pointer;
+        transition: transform 0.15s ease, filter 0.2s ease;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        filter: grayscale(0.4);
+      }
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+      .log {
+        margin-top: 12px;
+        background: #020617;
+        border-radius: 12px;
+        border: 1px solid #111827;
+        padding: 14px;
+        height: 280px;
+        overflow: auto;
+        font-family: "Inconsolata", monospace;
+        font-size: 0.9rem;
+        white-space: pre-wrap;
+        color: #cbd5f5;
+      }
+      .pill {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        background: #0b1220;
+        border: 1px solid #1f2a44;
+        color: var(--muted);
+      }
+      .muted { color: var(--muted); font-size: 0.85rem; }
+      a { color: var(--accent-2); }
+
+      .progress-bar {
+        width: 100%;
+        height: 24px;
+        background: #0b1220;
+        border-radius: 12px;
+        border: 1px solid #1f2a44;
+        overflow: hidden;
+        margin-top: 12px;
+        position: relative;
+      }
+      .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        border-radius: 12px;
+        transition: width 0.3s ease;
+        width: 0%;
+      }
+      .progress-bar-text {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--ink);
+        text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      }
+
+      .folders-detected {
+        margin-top: 12px;
+        padding: 12px;
+        background: #0b1220;
+        border-radius: 10px;
+        border: 1px solid #1f2a44;
+      }
+      .folders-detected h4 {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 0.9rem;
+      }
+      .folder-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        font-size: 0.85rem;
+        color: var(--muted);
+        border-bottom: 1px solid #1f2a4433;
+      }
+      .folder-item:last-child { border-bottom: none; }
+      .folder-item .count { color: var(--accent-2); }
+
+      .step-indicator {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .step {
+        flex: 1;
+        text-align: center;
+        padding: 8px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        background: #0b1220;
+        border: 1px solid #1f2a44;
+        color: var(--muted);
+        transition: all 0.3s;
+      }
+      .step.active {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: #0b122088;
+      }
+      .step.done {
+        border-color: var(--accent-2);
+        color: var(--accent-2);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Subida de Archivos</h1>
+      <p>Sube tus capitulos desde tu computadora al servidor para automatizar la subida a AnimeBBG.</p>
+    </header>
+
+    <div class="wrap">
+      <!-- Indicador de pasos -->
+      <div class="step-indicator">
+        <div class="step active" id="step1">1. Seleccionar archivos</div>
+        <div class="step" id="step2">2. Subir al servidor</div>
+        <div class="step" id="step3">3. Iniciar automatizacion</div>
+      </div>
+
+      <!-- Paso 1: Seleccionar y subir archivos -->
+      <section class="card" id="uploadCard">
+        <div class="row">
+          <span class="pill">Subida directa al servidor</span>
+          <span class="pill">Mantiene estructura de carpetas</span>
+        </div>
+
+        <label for="target">Nombre de la obra (carpeta destino en el servidor)</label>
+        <input id="target" type="text" placeholder="Ej: ruri-dragon" />
+
+        <label for="files">Selecciona la carpeta raiz con los capitulos</label>
+        <input id="files" type="file" webkitdirectory directory multiple />
+
+        <div id="foldersPreview"></div>
+
+        <div class="progress-bar" id="progressContainer" style="display: none;">
+          <div class="progress-bar-fill" id="progressFill"></div>
+          <div class="progress-bar-text" id="progressText">0%</div>
+        </div>
+
+        <button id="uploadBtn">Subir archivos al servidor</button>
+        <p class="muted">Los archivos se suben al servidor. Desde ahi el script los sube automaticamente a AnimeBBG.</p>
+
+        <div class="log" id="logBox">Esperando archivos...</div>
+      </section>
+
+      <!-- Paso 3: Ir al panel para iniciar subida -->
+      <section class="card" id="automateCard" style="display: none;">
+        <h3 style="margin: 0 0 12px; color: var(--accent);">Archivos subidos correctamente</h3>
+        <p class="muted">Ruta en el servidor:</p>
+        <input id="serverPath" type="text" readonly style="margin-bottom: 12px; cursor: pointer;" title="Click para copiar" />
+
+        <div class="row">
+          <div>
+            <button id="goToPanelBtn" style="background: linear-gradient(135deg, #38bdf8, #22c55e);">
+              Ir al panel y usar esta ruta
+            </button>
+          </div>
+          <div>
+            <button id="copyPathBtn" style="background: linear-gradient(135deg, #f59e0b, #f97316); color: #1f2937;">
+              Copiar ruta
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <p class="muted" style="margin-top: 16px;">Volver al panel: <a href="/">inicio</a></p>
+    </div>
+
+    <script>
+      const uploadBtn = document.getElementById("uploadBtn");
+      const filesInput = document.getElementById("files");
+      const logBox = document.getElementById("logBox");
+      const foldersPreview = document.getElementById("foldersPreview");
+      const progressContainer = document.getElementById("progressContainer");
+      const progressFill = document.getElementById("progressFill");
+      const progressText = document.getElementById("progressText");
+      const automateCard = document.getElementById("automateCard");
+      const serverPathInput = document.getElementById("serverPath");
+
+      function log(msg) {
+        logBox.textContent += `\n${msg}`;
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      function setStep(n) {
+        for (let i = 1; i <= 3; i++) {
+          const el = document.getElementById(`step${i}`);
+          el.classList.remove("active", "done");
+          if (i < n) el.classList.add("done");
+          else if (i === n) el.classList.add("active");
+        }
+      }
+
+      function updateProgress(current, total) {
+        const pct = Math.round((current / total) * 100);
+        progressFill.style.width = `${pct}%`;
+        progressText.textContent = `${current}/${total} archivos (${pct}%)`;
+      }
+
+      // Preview de carpetas cuando se seleccionan archivos
+      filesInput.addEventListener("change", () => {
+        const files = filesInput.files;
+        if (!files || !files.length) {
+          foldersPreview.innerHTML = "";
+          return;
+        }
+
+        // Agrupar por subcarpeta de primer nivel
+        const folders = {};
+        let totalSize = 0;
+        for (const file of files) {
+          const parts = (file.webkitRelativePath || file.name).split("/");
+          // parts[0] es la carpeta raiz, parts[1] seria el capitulo
+          const folderName = parts.length > 2 ? parts[1] : "(raiz)";
+          if (!folders[folderName]) folders[folderName] = { count: 0, size: 0 };
+          folders[folderName].count++;
+          folders[folderName].size += file.size;
+          totalSize += file.size;
+        }
+
+        const sortedFolders = Object.entries(folders).sort((a, b) => {
+          const na = parseInt(a[0]) || 0;
+          const nb = parseInt(b[0]) || 0;
+          return na - nb;
+        });
+
+        const totalMB = (totalSize / (1024 * 1024)).toFixed(1);
+        let html = `<div class="folders-detected">`;
+        html += `<h4>Carpetas detectadas (${sortedFolders.length} capitulos, ${totalMB} MB total, ${files.length} archivos)</h4>`;
+        for (const [name, info] of sortedFolders) {
+          const sizeMB = (info.size / (1024 * 1024)).toFixed(1);
+          html += `<div class="folder-item"><span>${name}</span><span class="count">${info.count} imgs (${sizeMB} MB)</span></div>`;
+        }
+        html += `</div>`;
+        foldersPreview.innerHTML = html;
+      });
+
+      uploadBtn.addEventListener("click", async () => {
+        const files = filesInput.files;
+        if (!files || !files.length) {
+          log("Selecciona una carpeta con archivos.");
+          return;
+        }
+
+        const target = document.getElementById("target").value.trim();
+        if (!target) {
+          log("[ERR] Escribe un nombre de carpeta destino.");
+          return;
+        }
+
+        uploadBtn.disabled = true;
+        setStep(2);
+        progressContainer.style.display = "block";
+
+        const totalFiles = files.length;
+        let uploaded = 0;
+        let errors = 0;
+
+        log(`[INFO] Iniciando subida de ${totalFiles} archivos...`);
+
+        // Subir en lotes de 20 archivos para no saturar
+        const BATCH_SIZE = 20;
+        const fileList = Array.from(files);
+
+        for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+          const batch = fileList.slice(i, i + BATCH_SIZE);
+          const form = new FormData();
+          form.append("target", target);
+
+          for (const file of batch) {
+            const name = file.webkitRelativePath || file.name;
+            form.append("files", file, name);
+          }
+
+          try {
+            const res = await fetch("/api/upload", { method: "POST", body: form });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              log(`[ERR] Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${data.error || "Error"}`);
+              errors += batch.length;
+            } else {
+              uploaded += data.files || batch.length;
+              log(`[OK] Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.length} archivos subidos`);
+            }
+          } catch (err) {
+            log(`[ERR] Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${err.message}`);
+            errors += batch.length;
+          }
+
+          updateProgress(Math.min(i + BATCH_SIZE, totalFiles), totalFiles);
+        }
+
+        log(`\n[COMPLETADO] ${uploaded} archivos subidos, ${errors} errores.`);
+        uploadBtn.disabled = false;
+
+        if (uploaded > 0) {
+          setStep(3);
+          // Obtener la ruta del servidor
+          try {
+            const res = await fetch("/api/uploads");
+            const data = await res.json();
+            if (data.uploads && data.uploads.length > 0) {
+              const serverPath = data.uploads[0];
+              serverPathInput.value = serverPath;
+              automateCard.style.display = "block";
+              log(`\n[INFO] Ruta en el servidor: ${serverPath}`);
+              log("[INFO] Usa esta ruta en el panel principal para iniciar la subida automatica.");
+            }
+          } catch {}
+        }
+      });
+
+      // Copiar ruta
+      document.getElementById("copyPathBtn").addEventListener("click", () => {
+        const path = serverPathInput.value;
+        navigator.clipboard.writeText(path).then(() => {
+          log("[INFO] Ruta copiada al portapapeles.");
+        }).catch(() => {
+          serverPathInput.select();
+          document.execCommand("copy");
+          log("[INFO] Ruta copiada.");
+        });
+      });
+
+      // Ir al panel con la ruta pre-cargada
+      document.getElementById("goToPanelBtn").addEventListener("click", () => {
+        const path = serverPathInput.value;
+        window.location.href = `/?rootDir=${encodeURIComponent(path)}`;
+      });
+
+      // Click en el input de ruta para copiar
+      serverPathInput.addEventListener("click", () => {
+        navigator.clipboard.writeText(serverPathInput.value).catch(() => {});
+        log("[INFO] Ruta copiada.");
+      });
+    </script>
+  </body>
+</html>

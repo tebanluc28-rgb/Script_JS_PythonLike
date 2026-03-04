@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AnimeBBG - Subida Remota</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inconsolata:wght@400;600&display=swap");
+
+      :root {
+        --bg-1: #0f172a;
+        --bg-2: #1f2937;
+        --panel: #0b1220cc;
+        --ink: #e5e7eb;
+        --muted: #94a3b8;
+        --accent: #22c55e;
+        --accent-2: #38bdf8;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(1200px 800px at 10% 10%, #1e293b 0%, #0f172a 50%, #020617 100%);
+        min-height: 100vh;
+      }
+      header {
+        padding: 28px 24px 8px;
+        text-align: center;
+      }
+      header h1 { margin: 0 0 6px; font-weight: 700; letter-spacing: 0.02em; }
+      header p { margin: 0; color: var(--muted); }
+      .wrap { max-width: 720px; margin: 0 auto; padding: 20px 24px 40px; }
+      .card {
+        background: var(--panel);
+        border: 1px solid #1f2a44;
+        border-radius: 16px;
+        padding: 20px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 16px 40px #02061780;
+        margin-bottom: 20px;
+      }
+      label { display: block; font-size: 0.9rem; margin: 12px 0 6px; color: var(--muted); }
+      input, select {
+        width: 100%; padding: 10px 12px; border-radius: 10px;
+        border: 1px solid #1f2a44; background: #0b1220; color: var(--ink); font-size: 0.95rem;
+      }
+      input::placeholder { color: #64748b; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; }
+      .row > div { flex: 1 1 200px; }
+      button {
+        margin-top: 16px; width: 100%; border: none; padding: 12px 16px;
+        border-radius: 12px; font-weight: 600; font-size: 1rem;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #052e16; cursor: pointer;
+        transition: transform 0.15s ease, filter 0.2s ease;
+      }
+      button:disabled { cursor: not-allowed; filter: grayscale(0.4); }
+      button:hover:not(:disabled) { transform: translateY(-1px); }
+      .pill {
+        display: inline-block; padding: 6px 10px; border-radius: 999px;
+        font-size: 0.8rem; background: #0b1220; border: 1px solid #1f2a44; color: var(--muted);
+      }
+      .log {
+        margin-top: 12px; background: #020617; border-radius: 12px;
+        border: 1px solid #111827; padding: 14px; height: 300px; overflow: auto;
+        font-family: "Inconsolata", monospace; font-size: 0.9rem;
+        white-space: pre-wrap; color: #cbd5f5;
+      }
+      .muted { color: var(--muted); font-size: 0.85rem; }
+      a { color: var(--accent-2); }
+
+      .progress-bar {
+        width: 100%; height: 28px; background: #0b1220; border-radius: 14px;
+        border: 1px solid #1f2a44; overflow: hidden; margin-top: 12px; position: relative;
+      }
+      .progress-bar-fill {
+        height: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        border-radius: 14px; transition: width 0.3s ease; width: 0%;
+      }
+      .progress-bar-text {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.85rem; font-weight: 600; color: var(--ink);
+        text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      }
+
+      .step-indicator { display: flex; gap: 8px; margin-bottom: 16px; }
+      .step {
+        flex: 1; text-align: center; padding: 10px 6px; border-radius: 8px;
+        font-size: 0.82rem; background: #0b1220; border: 1px solid #1f2a44;
+        color: var(--muted); transition: all 0.3s;
+      }
+      .step.active { border-color: var(--accent); color: var(--accent); background: #0b122088; }
+      .step.done { border-color: var(--accent-2); color: var(--accent-2); }
+
+      .folders-detected {
+        margin-top: 12px; padding: 12px; background: #0b1220;
+        border-radius: 10px; border: 1px solid #1f2a44; max-height: 200px; overflow-y: auto;
+      }
+      .folders-detected h4 { margin: 0 0 8px; color: var(--accent); font-size: 0.9rem; }
+      .folder-item {
+        display: flex; justify-content: space-between; padding: 4px 0;
+        font-size: 0.85rem; color: var(--muted); border-bottom: 1px solid #1f2a4433;
+      }
+      .folder-item:last-child { border-bottom: none; }
+      .folder-item .count { color: var(--accent-2); }
+
+      .status-bar {
+        display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+      }
+      .dot {
+        width: 12px; height: 12px; border-radius: 999px; background: var(--muted);
+        transition: background 0.3s;
+      }
+      .dot.uploading { background: var(--warn); animation: pulse 1.5s infinite; }
+      .dot.processing { background: var(--accent); animation: pulse 1.5s infinite; }
+      .dot.done { background: var(--accent-2); }
+      .dot.error { background: var(--danger); }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+      .btn-secondary {
+        background: linear-gradient(135deg, #f59e0b, #f97316); color: #1f2937;
+      }
+      .btn-stop {
+        background: linear-gradient(135deg, #f59e0b, #ef4444); color: #1f2937;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>AnimeBBG - Subida Remota</h1>
+      <p>Selecciona tus capitulos, sube y automatiza todo en un solo paso.</p>
+    </header>
+
+    <div class="wrap">
+      <div class="step-indicator">
+        <div class="step active" id="step1">1. Datos</div>
+        <div class="step" id="step2">2. Archivos</div>
+        <div class="step" id="step3">3. Subiendo</div>
+        <div class="step" id="step4">4. Automatizando</div>
+      </div>
+
+      <!-- Formulario -->
+      <section class="card" id="formCard">
+        <div class="row">
+          <span class="pill">Todo en un paso</span>
+          <span class="pill">Sin descargas</span>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="username">Usuario AnimeBBG</label>
+            <input id="username" type="text" placeholder="Tu usuario" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="Tu password" />
+          </div>
+        </div>
+
+        <label for="resourceUrl">URL de la obra</label>
+        <input id="resourceUrl" type="url" placeholder="https://animebbg.net/comics/nombre-obra.1234/" />
+
+        <label for="target">Nombre identificador (carpeta en el servidor)</label>
+        <input id="target" type="text" placeholder="Ej: ruri-dragon" />
+        <p class="muted">Un nombre corto para identificar esta obra en el servidor.</p>
+
+        <label for="files">Selecciona la carpeta con tus capitulos</label>
+        <input id="files" type="file" webkitdirectory directory multiple />
+
+        <div id="foldersPreview"></div>
+
+        <div class="row">
+          <div>
+            <label for="rangeStart">Rango inicio (opcional)</label>
+            <input id="rangeStart" type="text" placeholder="Ej: 1" />
+          </div>
+          <div>
+            <label for="rangeEnd">Rango fin (opcional)</label>
+            <input id="rangeEnd" type="text" placeholder="Ej: 20" />
+          </div>
+        </div>
+
+        <button id="startAllBtn">Subir y automatizar</button>
+        <p class="muted">Los archivos se envian al servidor y automaticamente se suben a AnimeBBG.</p>
+      </section>
+
+      <!-- Progreso -->
+      <section class="card" id="progressCard" style="display: none;">
+        <div class="status-bar">
+          <div class="dot" id="statusDot"></div>
+          <span id="statusText">Preparando...</span>
+        </div>
+
+        <div class="progress-bar" id="uploadProgress">
+          <div class="progress-bar-fill" id="uploadFill"></div>
+          <div class="progress-bar-text" id="uploadText">0%</div>
+        </div>
+        <p class="muted" id="phaseText">Fase 1: Subiendo archivos al servidor...</p>
+
+        <div class="row" style="margin-top: 8px;">
+          <div>
+            <button id="pauseBtn" class="btn-secondary" disabled>Pausar</button>
+          </div>
+          <div>
+            <button id="stopBtn" class="btn-stop" disabled>Detener</button>
+          </div>
+        </div>
+
+        <div class="log" id="logBox">Iniciando...</div>
+      </section>
+
+      <p class="muted" style="margin-top: 16px;">
+        Panel avanzado: <a href="/">admin</a> |
+        Subida manual: <a href="/upload.html">archivos</a>
+      </p>
+    </div>
+
+    <script>
+      const startAllBtn = document.getElementById("startAllBtn");
+      const filesInput = document.getElementById("files");
+      const foldersPreview = document.getElementById("foldersPreview");
+      const formCard = document.getElementById("formCard");
+      const progressCard = document.getElementById("progressCard");
+      const uploadFill = document.getElementById("uploadFill");
+      const uploadText = document.getElementById("uploadText");
+      const phaseText = document.getElementById("phaseText");
+      const statusDot = document.getElementById("statusDot");
+      const statusText = document.getElementById("statusText");
+      const logBox = document.getElementById("logBox");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const stopBtn = document.getElementById("stopBtn");
+
+      let logIndex = 0;
+      let polling = false;
+      let isPaused = false;
+
+      function log(msg) {
+        logBox.textContent += `\n${msg}`;
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      function setStep(n) {
+        for (let i = 1; i <= 4; i++) {
+          const el = document.getElementById(`step${i}`);
+          el.classList.remove("active", "done");
+          if (i < n) el.classList.add("done");
+          else if (i === n) el.classList.add("active");
+        }
+      }
+
+      function setDot(cls) {
+        statusDot.className = `dot ${cls}`;
+      }
+
+      function updateProgress(current, total, label) {
+        const pct = Math.round((current / total) * 100);
+        uploadFill.style.width = `${pct}%`;
+        uploadText.textContent = label || `${current}/${total} (${pct}%)`;
+      }
+
+      // Preview carpetas
+      filesInput.addEventListener("change", () => {
+        const files = filesInput.files;
+        if (!files || !files.length) { foldersPreview.innerHTML = ""; return; }
+        const folders = {};
+        let totalSize = 0;
+        for (const file of files) {
+          const parts = (file.webkitRelativePath || file.name).split("/");
+          const folderName = parts.length > 2 ? parts[1] : "(raiz)";
+          if (!folders[folderName]) folders[folderName] = { count: 0, size: 0 };
+          folders[folderName].count++;
+          folders[folderName].size += file.size;
+          totalSize += file.size;
+        }
+        const sorted = Object.entries(folders).sort((a, b) => {
+          const na = parseInt(a[0]) || 0;
+          const nb = parseInt(b[0]) || 0;
+          return na - nb;
+        });
+        const totalMB = (totalSize / (1024 * 1024)).toFixed(1);
+        let html = `<div class="folders-detected">`;
+        html += `<h4>${sorted.length} capitulos detectados (${totalMB} MB, ${files.length} archivos)</h4>`;
+        for (const [name, info] of sorted) {
+          const sizeMB = (info.size / (1024 * 1024)).toFixed(1);
+          html += `<div class="folder-item"><span>${name}</span><span class="count">${info.count} imgs (${sizeMB} MB)</span></div>`;
+        }
+        html += `</div>`;
+        foldersPreview.innerHTML = html;
+
+        // Auto-rellenar nombre si esta vacio
+        const targetInput = document.getElementById("target");
+        if (!targetInput.value.trim() && files.length > 0) {
+          const first = (files[0].webkitRelativePath || "").split("/")[0] || "";
+          if (first) targetInput.value = first.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "");
+        }
+      });
+
+      // ===== Proceso principal =====
+      startAllBtn.addEventListener("click", async () => {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const resourceUrl = document.getElementById("resourceUrl").value.trim();
+        const target = document.getElementById("target").value.trim();
+        const files = filesInput.files;
+        const rangeStart = document.getElementById("rangeStart").value.trim();
+        const rangeEnd = document.getElementById("rangeEnd").value.trim();
+
+        // Validar
+        if (!username || !password) { alert("Escribe tu usuario y password de AnimeBBG."); return; }
+        if (!resourceUrl) { alert("Pega la URL de la obra."); return; }
+        if (!target) { alert("Escribe un nombre para la carpeta."); return; }
+        if (!files || !files.length) { alert("Selecciona una carpeta con capitulos."); return; }
+
+        // Mostrar panel de progreso
+        formCard.style.display = "none";
+        progressCard.style.display = "block";
+        setStep(3);
+        setDot("uploading");
+        statusText.textContent = "Subiendo archivos al servidor...";
+        phaseText.textContent = "Fase 1: Enviando archivos desde tu PC al servidor...";
+        pauseBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        // ===== FASE 1: Subir archivos al servidor =====
+        const totalFiles = files.length;
+        let uploaded = 0;
+        let errors = 0;
+        const BATCH_SIZE = 20;
+        const fileList = Array.from(files);
+
+        log(`[FASE 1] Subiendo ${totalFiles} archivos al servidor...`);
+
+        for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+          const batch = fileList.slice(i, i + BATCH_SIZE);
+          const form = new FormData();
+          form.append("target", target);
+          for (const file of batch) {
+            const name = file.webkitRelativePath || file.name;
+            form.append("files", file, name);
+          }
+
+          try {
+            const res = await fetch("/api/upload", { method: "POST", body: form });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              log(`[ERR] Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${data.error || "Error"}`);
+              errors += batch.length;
+            } else {
+              uploaded += data.files || batch.length;
+            }
+          } catch (err) {
+            log(`[ERR] Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${err.message}`);
+            errors += batch.length;
+          }
+
+          updateProgress(Math.min(i + BATCH_SIZE, totalFiles), totalFiles,
+            `${Math.min(i + BATCH_SIZE, totalFiles)}/${totalFiles} archivos enviados`);
+        }
+
+        log(`[FASE 1] Completada: ${uploaded} archivos subidos, ${errors} errores.`);
+
+        if (uploaded === 0) {
+          setDot("error");
+          statusText.textContent = "Error: no se subieron archivos.";
+          return;
+        }
+
+        // Obtener ruta en el servidor
+        let serverPath = "";
+        try {
+          const res = await fetch("/api/uploads");
+          const data = await res.json();
+          if (data.uploads && data.uploads.length > 0) {
+            serverPath = data.uploads[0];
+          }
+        } catch {}
+
+        if (!serverPath) {
+          setDot("error");
+          statusText.textContent = "Error: no se pudo determinar la ruta en el servidor.";
+          log("[ERR] No se encontro la ruta de archivos subidos.");
+          return;
+        }
+
+        // ===== FASE 2: Iniciar subida automatica a AnimeBBG =====
+        setStep(4);
+        setDot("processing");
+        statusText.textContent = "Subiendo a AnimeBBG...";
+        phaseText.textContent = "Fase 2: El servidor esta subiendo tus capitulos a AnimeBBG...";
+        updateProgress(0, 100, "Iniciando automatizacion...");
+        pauseBtn.disabled = false;
+
+        log(`\n[FASE 2] Iniciando subida automatica a AnimeBBG...`);
+        log(`[INFO] Ruta: ${serverPath}`);
+        log(`[INFO] Obra: ${resourceUrl}`);
+
+        const payload = {
+          username,
+          password,
+          resourceUrl,
+          rootDir: serverPath,
+          rangeStart,
+          rangeEnd,
+        };
+
+        try {
+          const res = await fetch("/api/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setDot("error");
+            statusText.textContent = "Error al iniciar automatizacion.";
+            log(`[ERR] ${data.error || "No se pudo iniciar."}`);
+            return;
+          }
+          log("[OK] Automatizacion iniciada. Monitoreando progreso...");
+        } catch (err) {
+          setDot("error");
+          statusText.textContent = "Error de conexion.";
+          log(`[ERR] ${err.message}`);
+          return;
+        }
+
+        // Poll de progreso
+        logIndex = 0;
+        const pollInterval = setInterval(async () => {
+          if (polling) return;
+          polling = true;
+          try {
+            const res = await fetch(`/api/status?from=${logIndex}`);
+            const data = await res.json();
+
+            if (data.logs && data.logs.length) {
+              for (const line of data.logs) log(line);
+              logIndex = data.next;
+            }
+
+            if (data.status === "done") {
+              clearInterval(pollInterval);
+              setDot("done");
+              statusText.textContent = "Completado!";
+              phaseText.textContent = "Todos los capitulos han sido subidos a AnimeBBG.";
+              updateProgress(100, 100, "Completado!");
+              pauseBtn.disabled = true;
+              stopBtn.disabled = true;
+            } else if (data.status === "error") {
+              clearInterval(pollInterval);
+              setDot("error");
+              statusText.textContent = "Error durante la subida.";
+              phaseText.textContent = "Hubo un error. Revisa los logs para mas detalles.";
+              pauseBtn.disabled = true;
+            } else if (data.status === "paused") {
+              setDot("uploading");
+              statusText.textContent = "Pausado";
+            } else if (data.status === "running") {
+              setDot("processing");
+              statusText.textContent = "Subiendo a AnimeBBG...";
+            }
+          } catch {}
+          polling = false;
+        }, 1500);
+      });
+
+      // Pausar / Reanudar
+      pauseBtn.addEventListener("click", async () => {
+        if (!isPaused) {
+          const res = await fetch("/api/pause", { method: "POST" });
+          if (res.ok) {
+            isPaused = true;
+            pauseBtn.textContent = "Reanudar";
+            pauseBtn.style.background = "linear-gradient(135deg, #22c55e, #38bdf8)";
+            setDot("uploading");
+            statusText.textContent = "Pausado";
+          }
+        } else {
+          const res = await fetch("/api/resume", { method: "POST" });
+          if (res.ok) {
+            isPaused = false;
+            pauseBtn.textContent = "Pausar";
+            pauseBtn.style.background = "linear-gradient(135deg, #f59e0b, #f97316)";
+            setDot("processing");
+            statusText.textContent = "Subiendo a AnimeBBG...";
+          }
+        }
+      });
+
+      // Detener
+      stopBtn.addEventListener("click", async () => {
+        if (!confirm("Seguro que quieres detener la subida?")) return;
+        const res = await fetch("/api/stop", { method: "POST" });
+        if (res.ok) {
+          setDot("error");
+          statusText.textContent = "Detenido por el usuario.";
+          phaseText.textContent = "Subida detenida. Los archivos ya subidos permanecen en el servidor.";
+          pauseBtn.disabled = true;
+          stopBtn.disabled = true;
+        }
+      });
+    </script>
+  </body>
+</html>

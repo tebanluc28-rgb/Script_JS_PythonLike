@@ -1,37 +1,82 @@
-# AnimeBBG XenForo Uploader (Node.js)
+# AnimeBBG Uploader
 
-Este proyecto es un port del script Python a Node.js con Playwright.
+Sistema de subida automatizada de capitulos a AnimeBBG.
 
-## Qué mantiene del Python
-- Lee credenciales y configuración de `.env` (usuario/contraseña obligatorios).
-- Pide por consola SOLO inputs dinámicos si faltan: `RESOURCE_URL` (obra) y `PROJECT_BASE_DIR` (root).
-- `CHAPTERS_LIST_URL` se deriva como `<RESOURCE_URL>/capitulos` si no se especifica.
-- Reusa sesión con `STORAGE_STATE` (default `cookies.json`) para no iniciar sesión cada corrida.
-- Sube imágenes por lotes (`BATCH_UPLOAD_SIZE`) con espera entre lotes.
-- Antes de subir, cuenta imágenes guardadas y sube solo las faltantes.
-- Reintenta Guardar ante toasts/Cloudflare.
-- Verificación opcional via XenForo API si configuras `XENFORO_API_KEY`.
+## Opcion recomendada: Portable 1-03-26 (sin instalar Node)
 
-## Instalación
-```bash
+### Para crear el paquete distribuible (recomendado)
+
+Ejecuta:
+
+```bat
+build-portable-full.bat
+```
+
+Salida esperada:
+
+- `dist\AnimeBBG-Portable-1-03-26\`
+- `dist\AnimeBBG-Portable-1-03-26.zip`
+
+El paquete incluye:
+
+- Node.js portable
+- `node_modules` (runtime)
+- Chromium de Playwright en `pw-browsers`
+- lanzador `INICIAR-ANIMEBBG.bat`
+- lanzador de diagnostico `INICIAR-ANIMEBBG-DEBUG.bat`
+- `.env` portable con defaults estables para compartir
+
+### Para el usuario final
+
+1. Descomprimir `AnimeBBG-Portable-1-03-26.zip`
+2. Ejecutar `INICIAR-ANIMEBBG.bat`
+3. Usar el panel en `http://localhost:3000`
+
+No necesita instalar Node.js, npm ni Playwright.
+
+Si en otra PC aparece un error de automatizacion, ejecutar `INICIAR-ANIMEBBG-DEBUG.bat` y revisar `logs/` y `_debug/`.
+
+## Opcion secundaria: entorno de desarrollo con Node
+
+Requisitos:
+
+- Node.js 18+
+
+Instalacion:
+
+```bat
 npm install
 npx playwright install chromium
 ```
 
-## Uso
-```bash
+Ejecucion:
+
+```bat
 npm start
 ```
 
-Opciones:
-- `--resource <url>`
-- `--chapters-url <url>`
-- `--root <ruta>`
-- `--chapters "12,12.5,13"`
-- `--parallel 3`
-- `--save-retries 3`
-- `--save-window 120`
-- `--verify-retries 1`
+## Estructura de archivos para subir
 
-## .env mínimo
-Ver `.env.example`.
+Coloca tus obras en:
+
+`storage\incoming\obras\`
+
+Ejemplo:
+
+```text
+storage/incoming/obras/ruri-dragon/capitulo 1/001.jpg
+storage/incoming/obras/ruri-dragon/capitulo 1/002.jpg
+storage/incoming/obras/ruri-dragon/capitulo 2/001.jpg
+```
+
+## Compartir con otros
+
+1. Ejecuta `build-portable-full.bat`
+2. Comparte `dist\AnimeBBG-Portable-1-03-26.zip`
+3. El receptor solo ejecuta `INICIAR-ANIMEBBG.bat`
+
+## Scripts npm
+
+- `npm run build` -> crea portable 1-03-26 (flujo oficial)
+- `npm run build:portable` -> igual que `build`
+- `npm run build:exe` -> legado con `pkg` (no recomendado)

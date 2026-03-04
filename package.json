@@ -1,15 +1,42 @@
 {
-  "name": "animebbg-xenforo-uploader",
-  "version": "1.0.0",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "start": "node web_server.js",
-    "cli": "node uploader_xf_animebbg2.js"
+    "name": "animebbg-xenforo-uploader",
+    "version": "1.0.0",
+    "type": "module",
+    "private": true,
+    "bin": "web_server.js",
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "start": "node web_server.js",
+        "cli": "node uploader_xf_animebbg2.js",
+    "build": "call build-portable-full.bat",
+    "build:portable": "call build-portable-full.bat",
+    "build:snapshot": "call build-portable-sin-detener.bat",
+    "build:exe": "pkg . --targets node18-win-x64 --output dist/AnimeBBG-Uploader.exe"
   },
-  "dependencies": {
-    "dotenv": "16.6.1",
-    "express": "4.21.2",
-    "playwright": "1.57.0"
-  }
+    "pkg": {
+        "assets": [
+            "public/**/*",
+            "node_modules/playwright-core/**/*"
+        ],
+        "scripts": [
+            "uploader_xf_animebbg2.js",
+            "notification_publisher.js",
+            "notification_preview.js",
+            "drive_download.js"
+        ],
+        "outputPath": "dist"
+    },
+    "dependencies": {
+        "chalk": "^5.6.2",
+        "dotenv": "16.6.1",
+        "express": "4.21.2",
+        "multer": "1.4.5-lts.1",
+        "playwright": "1.57.0",
+        "sharp": "^0.34.5"
+    },
+    "devDependencies": {
+        "pkg": "^5.8.1"
+    }
 }

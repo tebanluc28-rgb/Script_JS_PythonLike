@@ -1,0 +1,114 @@
+=====================================
+ PAQUETE PORTABLE FINAL - LISTO
+=====================================
+
+✅ PROBADO Y FUNCIONANDO
+✅ Node.js 18 incluido
+✅ NO requiere instalacion
+
+=====================================
+ UBICACION:
+=====================================
+
+Carpeta:
+  AnimeBBG-Portable-V2/ (111 MB)
+
+Archivo comprimido:
+  AnimeBBG-Portable-FINAL.tar.gz (34 MB)
+
+=====================================
+ PARA COMPARTIR:
+=====================================
+
+1. Comparte el archivo comprimido:
+   AnimeBBG-Portable-FINAL.tar.gz (34 MB)
+
+2. O comprime la carpeta AnimeBBG-Portable-V2 en ZIP
+
+3. Sube a:
+   - Google Drive
+   - Dropbox
+   - OneDrive
+   - WeTransfer
+   - MEGA
+
+=====================================
+ INSTRUCCIONES PARA EL USUARIO:
+=====================================
+
+1. Descomprimir el archivo (con 7-Zip, WinRAR, etc.)
+
+2. Ejecutar: AnimeBBG-Uploader.bat
+
+3. Abrir navegador en: http://localhost:3000
+
+4. Configurar credenciales y usar
+
+¡ESO ES TODO! Sin instalaciones.
+
+=====================================
+ CONTENIDO DEL PAQUETE:
+=====================================
+
+✅ nodejs-portable/          Node.js 18 portable (28 MB)
+✅ node_modules/             Dependencias (70 MB)
+✅ public/                   Interfaz web
+✅ storage/incoming/obras/   Carpeta para mangas
+✅ AnimeBBG-Uploader.bat     Script de inicio
+✅ web_server.js            Servidor
+✅ uploader_xf_animebbg2.js Subidor de capitulos
+✅ notification_*.js         Sistema de notificaciones
+✅ .env                      Configuracion
+✅ LEEME.txt                 Instrucciones
+
+=====================================
+ LO QUE INCLUYE:
+=====================================
+
+✅ Node.js portable - NO necesita instalacion
+✅ Todas las dependencias (playwright, express, multer, etc.)
+✅ Interfaz web completa
+✅ Sistema de notificaciones
+✅ Soporte Google Drive
+✅ Scripts de inicio automatico
+
+=====================================
+ VENTAJAS:
+=====================================
+
+✅ Sin instalacion - Solo descomprimir y ejecutar
+✅ Portable - Se puede copiar a USB
+✅ Todo incluido - Node.js + dependencias
+✅ Funciona offline (excepto primera descarga de Chromium)
+✅ Facil de compartir - 34 MB comprimido
+✅ Compatible con Windows 10/11 de 64 bits
+
+=====================================
+ TAMAÑO:
+=====================================
+
+Descomprimido: 111 MB
+Comprimido: 34 MB
+
+Chromium se descarga aparte (~100 MB) la primera vez que se usa
+
+=====================================
+ PROBADO:
+=====================================
+
+✅ Servidor inicia correctamente
+✅ Node.js portable funciona
+✅ Interfaz web accesible
+✅ Puerto 3000 funcionando
+
+=====================================
+ DIFERENCIAS CON VERSION ANTERIOR:
+=====================================
+
+❌ Version con pkg (53 MB): NO funciono (problemas ES modules)
+✅ Version con Node.js portable (111 MB): FUNCIONA PERFECTAMENTE
+
+Esta version incluye Node.js completo en lugar de intentar
+empaquetarlo en un .exe, lo que garantiza compatibilidad total.
+
+=====================================

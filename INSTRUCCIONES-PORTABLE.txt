@@ -1,0 +1,116 @@
+=====================================
+ PAQUETE PORTABLE CREADO EXITOSAMENTE
+=====================================
+
+UBICACION:
+  D:\DD - Descargas\Typper\AnimeBbg\Script_JS_PythonLike - copia\AnimeBBG-Portable\
+
+ARCHIVO COMPRIMIDO:
+  AnimeBBG-Portable.tar.gz (20 MB)
+
+=====================================
+ CONTENIDO DEL PAQUETE:
+=====================================
+
+✅ AnimeBBG-Uploader.exe (53 MB) - Ejecutable todo-en-uno
+✅ public/ - Interfaz web
+✅ storage/incoming/obras/ - Carpeta para mangas
+✅ .env - Configuracion
+✅ LEEME.txt - Instrucciones para el usuario
+
+=====================================
+ COMO COMPARTIR:
+=====================================
+
+OPCION 1 - Archivo comprimido (RECOMENDADO):
+1. Comparte el archivo: AnimeBBG-Portable.tar.gz
+2. La otra persona lo descomprime con 7-Zip o WinRAR
+3. Ejecuta AnimeBBG-Uploader.exe
+4. Abre http://localhost:3000 en el navegador
+
+OPCION 2 - Carpeta directa:
+1. Comprime la carpeta AnimeBBG-Portable/ en ZIP
+   (Click derecho -> Enviar a -> Carpeta comprimida)
+2. Comparte el ZIP
+3. La otra persona descomprime y ejecuta el .exe
+
+=====================================
+ VENTAJAS DE LA VERSION PORTABLE:
+=====================================
+
+✅ NO requiere instalar Node.js
+✅ NO requiere instalar dependencias
+✅ TODO incluido en el ejecutable
+✅ Funciona sin conexion a internet (excepto para descargar Chromium la primera vez)
+✅ Portable - se puede copiar a una USB
+✅ Facil de compartir - un solo archivo .exe
+
+=====================================
+ LO QUE EL USUARIO NECESITA:
+=====================================
+
+MINIMO:
+- Windows 10/11 de 64 bits
+- 100 MB de espacio libre (para Chromium)
+- Conexion a internet (solo primera vez)
+
+NO NECESITA:
+- ❌ Node.js
+- ❌ npm
+- ❌ Instalacion de dependencias
+- ❌ Conocimientos tecnicos
+
+=====================================
+ INSTRUCCIONES PARA EL USUARIO:
+=====================================
+
+1. Descomprimir el archivo
+2. Ejecutar AnimeBBG-Uploader.exe
+3. Abrir http://localhost:3000 en el navegador
+4. Usar la interfaz web normalmente
+
+¡ESO ES TODO!
+
+=====================================
+ PRIMERA EJECUCION:
+=====================================
+
+La primera vez que se ejecuta:
+- Playwright descargara Chromium (100 MB aprox)
+- Esto puede tardar unos minutos
+- Solo ocurre UNA vez
+
+=====================================
+ NOTAS TECNICAS:
+=====================================
+
+- El ejecutable incluye Node.js 18 embebido
+- Todo el codigo JS esta empaquetado dentro del .exe
+- La carpeta public/ debe estar junto al .exe
+- Las credenciales se guardan en secrets.json
+- Los archivos temporales van a storage/
+
+=====================================
+ SI QUIERES RECREAR EL EJECUTABLE:
+=====================================
+
+Ejecuta en esta carpeta:
+  npm run build
+
+Esto generara dist/AnimeBBG-Uploader.exe
+
+=====================================
+ COMPARTIR POR:
+=====================================
+
+✅ Google Drive
+✅ Dropbox
+✅ OneDrive
+✅ WeTransfer (archivos grandes)
+✅ MEGA
+✅ MediaFire
+
+Tamaño del archivo comprimido: 20 MB
+(facil de compartir por cualquier medio)
+
+=====================================
