@@ -6,12 +6,10 @@ import os from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 import { spawn } from "child_process";
 import multer from "multer";
-import dotenv from "dotenv";
 import { downloadDriveFolder, extractFolderId } from "./drive_download.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ override: false });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,14 +21,13 @@ const MAX_UPLOAD_MB = parseInt(process.env.MAX_UPLOAD_MB || "2048", 10);
 const PUBLIC_DIR = path.join(APP_ROOT, "public");
 const COOKIE_SECURE = (process.env.COOKIE_SECURE || "0") === "1";
 const SECRETS_FILE = process.env.SECRETS_FILE || path.join(DATA_DIR, "secrets.json");
-const QUEUE_STATE_FILE = process.env.QUEUE_STATE_FILE || path.join(DATA_DIR, "queue_state.json");
-const UPLOAD_PROGRESS_FILE = process.env.UPLOAD_PROGRESS_FILE || path.join(DATA_DIR, "upload_progress.json");
 
 const NODE_EXE = fs.existsSync(path.join(__dirname, "nodejs-portable", "node.exe"))
   ? path.join(__dirname, "nodejs-portable", "node.exe")
   : "node";
 
 const PW_BROWSERS_DIR = path.join(__dirname, "pw-browsers");
+
 
 const jobs = new Map();
 
@@ -64,254 +61,17 @@ function safeJoin(base, target) {
 }
 
 function readSecrets() {
-  let secrets = {};
   try {
-    if (fs.existsSync(SECRETS_FILE)) {
-      const raw = fs.readFileSync(SECRETS_FILE, "utf8");
-      secrets = JSON.parse(raw) || {};
-    }
+    if (!fs.existsSync(SECRETS_FILE)) return {};
+    const raw = fs.readFileSync(SECRETS_FILE, "utf8");
+    return JSON.parse(raw);
   } catch {
-    secrets = {};
+    return {};
   }
-  // Fallback a variables de entorno para reanudación si no hay secrets.json
-  if (!secrets.username) secrets.username = process.env.SITE_USERNAME || process.env.USERNAME || "";
-  if (!secrets.password) secrets.password = process.env.SITE_PASSWORD || process.env.PASSWORD || "";
-  if (!secrets.apiKey) secrets.apiKey = process.env.XENFORO_API_KEY || "";
-  if (!secrets.apiUser) secrets.apiUser = process.env.XENFORO_API_USER || "";
-  return secrets;
 }
 
 function writeSecrets(data) {
   fs.writeFileSync(SECRETS_FILE, JSON.stringify(data, null, 2), "utf8");
-}
-
-
-
-// ===== Persistencia de la cola entre reinicios del servidor =====
-function saveQueueState() {
-  try {
-    const state = {};
-    for (const [sid, job] of jobs) {
-      const queue = Array.isArray(job.queue) ? job.queue : [];
-      const current = job.currentPayload || null;
-      if (queue.length > 0 || current) {
-        state[sid] = { queue, current };
-      }
-    }
-    fs.writeFileSync(QUEUE_STATE_FILE, JSON.stringify(state, null, 2), "utf8");
-  } catch (e) {
-    console.error("[WARN] No se pudo guardar estado de cola:", e.message);
-  }
-}
-
-function loadQueueState() {
-  try {
-    if (!fs.existsSync(QUEUE_STATE_FILE)) return {};
-    const raw = fs.readFileSync(QUEUE_STATE_FILE, "utf8");
-    return JSON.parse(raw) || {};
-  } catch {
-    return {};
-  }
-}
-
-const _savedQueues = loadQueueState();
-
-function normalizeProgressChapterList(values) {
-  const unique = new Set();
-  for (const val of Array.isArray(values) ? values : []) {
-    const token = normalizeChapterTokenForProgress(val);
-    if (token) unique.add(token);
-  }
-  return Array.from(unique).sort(compareChapterTokens);
-}
-
-function compareChapterTokens(a, b) {
-  const tokenA = normalizeChapterTokenForProgress(a);
-  const tokenB = normalizeChapterTokenForProgress(b);
-  if (!tokenA && !tokenB) return 0;
-  if (!tokenA) return 1;
-  if (!tokenB) return -1;
-
-  const [intA, decA = ""] = tokenA.split(".");
-  const [intB, decB = ""] = tokenB.split(".");
-  const intDiff = parseInt(intA, 10) - parseInt(intB, 10);
-  if (intDiff !== 0) return intDiff;
-
-  if (decA === decB) return 0;
-  if (!decA) return -1;
-  if (!decB) return 1;
-
-  const numericDecDiff = parseInt(decA, 10) - parseInt(decB, 10);
-  if (numericDecDiff !== 0) return numericDecDiff;
-  if (decA.length !== decB.length) return decA.length - decB.length;
-  return decA.localeCompare(decB);
-}
-
-function normalizeProgressEntry(key, entry = {}) {
-  const completedChapters = normalizeProgressChapterList(entry.completedChapters);
-  const lastAttemptedChapter = normalizeChapterTokenForProgress(entry.lastAttemptedChapter);
-  const lastFailedChapter = normalizeChapterTokenForProgress(entry.lastFailedChapter);
-  return {
-    key,
-    resourceUrl: String(entry.resourceUrl || ""),
-    rootDir: String(entry.rootDir || ""),
-    rangeStart: entry.rangeStart === undefined || entry.rangeStart === null ? "" : String(entry.rangeStart),
-    rangeEnd: entry.rangeEnd === undefined || entry.rangeEnd === null ? "" : String(entry.rangeEnd),
-    status: String(entry.status || "idle"),
-    completedChapters,
-    minChapter: completedChapters.length ? completedChapters[0] : null,
-    maxChapter: completedChapters.length ? completedChapters[completedChapters.length - 1] : null,
-    lastCompletedChapter: completedChapters.length ? completedChapters[completedChapters.length - 1] : null,
-    lastAttemptedChapter,
-    lastFailedChapter,
-    startedAt: entry.startedAt || null,
-    updatedAt: entry.updatedAt || null,
-    lastRunStartedAt: entry.lastRunStartedAt || null,
-    lastRunEndedAt: entry.lastRunEndedAt || null,
-    lastSid: entry.lastSid || null,
-    notifiedAt: entry.notifiedAt || null,
-  };
-}
-
-function saveUploadProgressState() {
-  try {
-    const state = {};
-    for (const [key, entry] of Object.entries(_uploadProgressState)) {
-      state[key] = normalizeProgressEntry(key, entry);
-    }
-    fs.writeFileSync(UPLOAD_PROGRESS_FILE, JSON.stringify(state, null, 2), "utf8");
-  } catch (e) {
-    console.error("[WARN] No se pudo guardar progreso de subida:", e.message);
-  }
-}
-
-function loadUploadProgressState() {
-  try {
-    if (!fs.existsSync(UPLOAD_PROGRESS_FILE)) return {};
-    const raw = fs.readFileSync(UPLOAD_PROGRESS_FILE, "utf8");
-    const parsed = JSON.parse(raw) || {};
-    const out = {};
-    for (const [key, entry] of Object.entries(parsed)) {
-      const normalized = normalizeProgressEntry(key, entry);
-      if (normalized.status === "running" || normalized.status === "paused") {
-        normalized.status = "interrupted";
-      }
-      out[key] = normalized;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-const _uploadProgressState = loadUploadProgressState();
-saveUploadProgressState();
-
-function buildUploadProgressKey(payload = {}) {
-  const seed = JSON.stringify({
-    resourceUrl: String(payload.resourceUrl || "").trim(),
-    rootDir: String(payload.rootDir || "").trim(),
-    rangeStart: payload.rangeStart === undefined || payload.rangeStart === null ? "" : String(payload.rangeStart).trim(),
-    rangeEnd: payload.rangeEnd === undefined || payload.rangeEnd === null ? "" : String(payload.rangeEnd).trim(),
-  });
-  return crypto.createHash("sha1").update(seed).digest("hex").slice(0, 20);
-}
-
-function getOrCreateUploadProgress(payload = {}, sid = null) {
-  const key = buildUploadProgressKey(payload);
-  const now = new Date().toISOString();
-  const existing = _uploadProgressState[key];
-  const shouldResumeExisting = existing && ["running", "paused", "interrupted", "error"].includes(existing.status);
-
-  const entry = shouldResumeExisting
-    ? normalizeProgressEntry(key, existing)
-    : normalizeProgressEntry(key, {
-      resourceUrl: payload.resourceUrl,
-      rootDir: payload.rootDir,
-      rangeStart: payload.rangeStart,
-      rangeEnd: payload.rangeEnd,
-      completedChapters: [],
-    });
-
-  if (!entry.startedAt || !shouldResumeExisting) entry.startedAt = now;
-  entry.resourceUrl = String(payload.resourceUrl || entry.resourceUrl || "");
-  entry.rootDir = String(payload.rootDir || entry.rootDir || "");
-  entry.rangeStart = payload.rangeStart === undefined || payload.rangeStart === null ? "" : String(payload.rangeStart);
-  entry.rangeEnd = payload.rangeEnd === undefined || payload.rangeEnd === null ? "" : String(payload.rangeEnd);
-  entry.status = "running";
-  entry.updatedAt = now;
-  entry.lastRunStartedAt = now;
-  entry.lastSid = sid || entry.lastSid || null;
-  _uploadProgressState[key] = entry;
-  saveUploadProgressState();
-  return entry;
-}
-
-function updateUploadProgressStatus(key, status, extra = {}) {
-  if (!key || !_uploadProgressState[key]) return;
-  const now = new Date().toISOString();
-  const entry = normalizeProgressEntry(key, { ..._uploadProgressState[key], ...extra, status, updatedAt: now });
-  if (["done", "error", "stopped", "interrupted", "notified"].includes(status)) {
-    entry.lastRunEndedAt = now;
-  }
-  if (status === "notified") {
-    entry.notifiedAt = now;
-  }
-  _uploadProgressState[key] = entry;
-  saveUploadProgressState();
-}
-
-function recordCompletedChapterInProgress(key, rawChapter) {
-  if (!key || !_uploadProgressState[key]) return;
-  const entry = _uploadProgressState[key];
-  const token = normalizeChapterTokenForProgress(rawChapter);
-  if (!token) return;
-  const chapters = normalizeProgressChapterList([...(entry.completedChapters || []), token]);
-  entry.completedChapters = chapters;
-  entry.minChapter = chapters.length ? chapters[0] : null;
-  entry.maxChapter = chapters.length ? chapters[chapters.length - 1] : null;
-  entry.lastCompletedChapter = chapters.length ? chapters[chapters.length - 1] : null;
-  entry.lastAttemptedChapter = token;
-  if (entry.lastFailedChapter === token) entry.lastFailedChapter = null;
-  entry.updatedAt = new Date().toISOString();
-  _uploadProgressState[key] = entry;
-  saveUploadProgressState();
-}
-
-function recordAttemptedChapterInProgress(key, rawChapter, status = "attempt") {
-  if (!key || !_uploadProgressState[key]) return;
-  const entry = _uploadProgressState[key];
-  const token = normalizeChapterTokenForProgress(rawChapter);
-  if (!token) return;
-  entry.lastAttemptedChapter = token;
-  if (status === "failed") {
-    entry.lastFailedChapter = token;
-  } else if (status === "completed" && entry.lastFailedChapter === token) {
-    entry.lastFailedChapter = null;
-  }
-  entry.updatedAt = new Date().toISOString();
-  _uploadProgressState[key] = entry;
-  saveUploadProgressState();
-}
-
-function resolveProgressChapter(key, chapter, action = "manual") {
-  if (!key || !_uploadProgressState[key]) return null;
-  const entry = normalizeProgressEntry(key, _uploadProgressState[key]);
-  const token = normalizeChapterTokenForProgress(chapter);
-  if (!token) return null;
-  const completedChapters = normalizeProgressChapterList([...(entry.completedChapters || []), token]);
-  entry.completedChapters = completedChapters;
-  entry.minChapter = completedChapters.length ? completedChapters[0] : null;
-  entry.maxChapter = completedChapters.length ? completedChapters[completedChapters.length - 1] : null;
-  entry.lastCompletedChapter = completedChapters.length ? completedChapters[completedChapters.length - 1] : null;
-  entry.status = action === "skip" ? "skipped-forward" : "manual-fixed";
-  entry.updatedAt = new Date().toISOString();
-  _uploadProgressState[key] = entry;
-  saveUploadProgressState();
-  return {
-    ...entry,
-    nextPendingChapter: computeNextPendingChapter(entry),
-  };
 }
 
 function clearEnvCredentialKeys() {
@@ -336,109 +96,6 @@ function toNumberMaybe(val) {
   if (val === null || val === undefined || val === "") return null;
   const n = Number(String(val).replace(",", "."));
   return Number.isNaN(n) ? null : n;
-}
-
-function normalizeChapterTokenForProgress(value) {
-  const raw = String(value ?? "").trim().replace(",", ".");
-  if (!raw) return null;
-  const m = raw.match(/^(\d+)(?:\.(\d+))?$/);
-  if (!m) return null;
-  const intPart = String(parseInt(m[1], 10));
-  return m[2] !== undefined ? `${intPart}.${m[2]}` : intPart;
-}
-
-function extractChapterTokenForProgress(text) {
-  const original = String(text || "").trim();
-  if (!original) return null;
-  const normalized = original
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-  const byCap = normalized.match(/\b(?:cap(?:itulo)?|chapter)\s*([0-9]+(?:[.,][0-9]+)?)/i);
-  if (byCap) return normalizeChapterTokenForProgress(byCap[1]);
-  const firstNum = original.match(/([0-9]+(?:[.,][0-9]+)?)/);
-  if (firstNum) return normalizeChapterTokenForProgress(firstNum[1]);
-  return null;
-}
-
-function resolveRootDirPath(rootDir) {
-  if (!rootDir) return "";
-  if (fs.existsSync(rootDir)) return rootDir;
-  const incomingPath = safeJoin(UPLOAD_BASE_DIR, rootDir);
-  return fs.existsSync(incomingPath) ? incomingPath : rootDir;
-}
-
-function listChapterNumbersFromRoot(rootDir) {
-  const resolvedRoot = resolveRootDirPath(rootDir);
-  if (!resolvedRoot || !fs.existsSync(resolvedRoot)) return [];
-  const out = [];
-  for (const ent of fs.readdirSync(resolvedRoot, { withFileTypes: true })) {
-    if (!ent.isDirectory()) continue;
-    const token = extractChapterTokenForProgress(ent.name);
-    if (token) out.push(token);
-  }
-  return Array.from(new Set(out)).sort(compareChapterTokens);
-}
-
-function computeNextPendingChapter(entry) {
-  if (!entry) return null;
-  const chapterNumbers = listChapterNumbersFromRoot(entry.rootDir);
-  if (!chapterNumbers.length) return null;
-
-  const completedList = normalizeProgressChapterList(entry.completedChapters);
-  const completed = new Set(completedList);
-  const min = toNumberMaybe(entry.rangeStart);
-  const max = toNumberMaybe(entry.rangeEnd);
-  const lastCompleted = completedList.length ? completedList[completedList.length - 1] : null;
-  const lastAttempted = normalizeChapterTokenForProgress(entry.lastAttemptedChapter);
-  const lastFailed = normalizeChapterTokenForProgress(entry.lastFailedChapter);
-
-  // Si hay un capitulo fallido que no está completado, reintentarlo primero.
-  if (lastFailed && !completed.has(lastFailed)) {
-    const num = toNumberMaybe(lastFailed);
-    const minOk = min === null || num === null || num >= min;
-    const maxOk = max === null || num === null || num <= max;
-    if (minOk && maxOk) return lastFailed;
-  }
-
-  const anchorToken = [lastAttempted, lastCompleted]
-    .filter(Boolean)
-    .sort(compareChapterTokens)
-    .slice(-1)[0] || null;
-
-  // En recuperación manual o interrumpida, continuar después del punto más avanzado
-  // conocido (intentado o confirmado), no desde el primer faltante global.
-  if (anchorToken) {
-    for (const token of chapterNumbers) {
-      const num = toNumberMaybe(token);
-      if (num === null) continue;
-      if (min !== null && num < min) continue;
-      if (max !== null && num > max) continue;
-      if (compareChapterTokens(token, anchorToken) <= 0) continue;
-      if (!completed.has(token)) return token;
-    }
-  }
-
-  for (const token of chapterNumbers) {
-    const num = toNumberMaybe(token);
-    if (num === null) continue;
-    if (min !== null && num < min) continue;
-    if (max !== null && num > max) continue;
-    if (!completed.has(token)) return token;
-  }
-  return null;
-}
-
-function getResolvableUploadProgressEntries() {
-  return Object.values(_uploadProgressState)
-    .map((entry) => {
-      const normalized = normalizeProgressEntry(entry.key || buildUploadProgressKey(entry), entry);
-      return {
-        ...normalized,
-        nextPendingChapter: computeNextPendingChapter(normalized),
-      };
-    })
-    .filter((entry) => ["paused", "error", "interrupted", "stopped", "manual-fixed", "skipped-forward"].includes(entry.status) && entry.nextPendingChapter !== null);
 }
 
 function parseCookies(header) {
@@ -502,69 +159,19 @@ function pushLog(job, line) {
   if (job.logs.length > 2000) job.logs.splice(0, job.logs.length - 2000);
 }
 
-function createNotifyChapterTracker() {
-  return {
-    seen: new Set(),
-    min: null,
-    max: null,
-    count: 0,
-  };
-}
-
-function resetNotifyChapterTracker(job) {
-  job.notifyChapterTracker = createNotifyChapterTracker();
-  job.completedChaptersForNotify = [];
-}
-
-function recordCompletedChapterForNotify(job, rawChapter) {
-  const num = Number(String(rawChapter || "").replace(",", "."));
-  if (!Number.isFinite(num) || num <= 0) return;
-
-  if (!job.notifyChapterTracker) resetNotifyChapterTracker(job);
-  const tracker = job.notifyChapterTracker;
-  if (tracker.seen.has(num)) return;
-
-  tracker.seen.add(num);
-  tracker.count += 1;
-  tracker.min = tracker.min === null ? num : Math.min(tracker.min, num);
-  tracker.max = tracker.max === null ? num : Math.max(tracker.max, num);
-  job.completedChaptersForNotify.push(num);
-}
-
-function seedNotifyTrackerFromProgress(job, progressEntry) {
-  resetNotifyChapterTracker(job);
-  const chapters = normalizeProgressChapterList(progressEntry && progressEntry.completedChapters);
-  for (const num of chapters) {
-    recordCompletedChapterForNotify(job, num);
-  }
-}
-
 function getJobState(sid) {
   if (jobs.has(sid)) return jobs.get(sid);
-  // Restaurar cola persistida si existe para esta sesion
-  const saved = _savedQueues[sid] || {};
-  const restoredQueue = Array.isArray(saved.queue) ? saved.queue.slice() : [];
-  if (saved.current) restoredQueue.unshift(saved.current);
   const job = {
     status: "idle",
     logs: [],
-    queueLogs: [],
-    notifyPaused: false,
-    completedChaptersForNotify: [],
-    notifyChapterTracker: createNotifyChapterTracker(),
     startedAt: null,
     endedAt: null,
     proc: null,
     pauseFile: null,
-    queue: restoredQueue,
+    queue: [],
     current: null,
-    currentPayload: null,
-    currentProgressKey: null,
     uploads: [],
   };
-  if (job.queue.length > 0) {
-    console.log(`[INFO] Cola restaurada para sesion ${sid.slice(0, 8)}...: ${job.queue.length} trabajos`);
-  }
   jobs.set(sid, job);
   return job;
 }
@@ -577,7 +184,6 @@ function buildTask(payload, sid) {
     rootDir,
     rangeStart,
     rangeEnd,
-    resumeFromChapter,
     apiKey,
     apiUser,
   } = payload || {};
@@ -593,10 +199,9 @@ function buildTask(payload, sid) {
       return { error: "La ruta raiz no existe en el servidor." };
     }
   }
-  const startToken = normalizeChapterTokenForProgress(rangeStart);
-  const endToken = normalizeChapterTokenForProgress(rangeEnd);
-  const resumeToken = normalizeChapterTokenForProgress(resumeFromChapter);
-  if ((rangeStart && startToken === null) || (rangeEnd && endToken === null)) {
+  const startNum = toNumberMaybe(rangeStart);
+  const endNum = toNumberMaybe(rangeEnd);
+  if ((rangeStart && startNum === null) || (rangeEnd && endNum === null)) {
     return { error: "Rango invalido. Usa numeros como 106 o 112.5." };
   }
 
@@ -629,25 +234,15 @@ function buildTask(payload, sid) {
     "--parallel", "3",
     "--queue",
   ];
-  const progressKey = buildUploadProgressKey(payload || {});
-  const progressEntry = _uploadProgressState[progressKey] || null;
-  const resumeFrom = computeNextPendingChapter(progressEntry);
-
-  // PRIORIDAD: Si el usuario especifica un rango de inicio manualmente, respetarlo.
-  // Si NO especifica nada, intentar reanudar desde donde quedo.
-  const effectiveStart = startToken || resumeToken || resumeFrom;
-
-  if (effectiveStart !== null) args.push("--start", String(effectiveStart));
-  if (endToken !== null) args.push("--end", String(endToken));
+  if (startNum !== null) args.push("--start", String(startNum));
+  if (endNum !== null) args.push("--end", String(endNum));
 
   return {
     env,
     args,
     pauseFile,
     label: resourceUrl,
-    rangeLabel: (effectiveStart !== null || endToken !== null) ? `${effectiveStart ?? "-"} -> ${endToken ?? "-"}` : null,
-    effectiveStart,
-    progressEntry,
+    rangeLabel: (startNum !== null || endNum !== null) ? `${startNum ?? "-"} -> ${endNum ?? "-"}` : null,
   };
 }
 
@@ -664,79 +259,65 @@ async function publishAutoNotification(resourceUrl, job) {
     throw new Error("No hay URL de recurso.");
   }
 
+  // Obtener solo los logs de la subida actual (desde currentUploadStartLogIndex)
+  const startIndex = job.currentUploadStartLogIndex || 0;
+  const currentUploadLogs = job.logs.slice(startIndex);
+
+  // Intentar detectar el rango de capitulos desde los logs de esta subida
   let chapterStart = null;
   let chapterEnd = null;
-  const tracker = job.notifyChapterTracker;
 
-  if (tracker && tracker.count > 0 && tracker.min !== null && tracker.max !== null) {
-    chapterStart = tracker.min;
-    chapterEnd = tracker.max;
-    if (chapterStart === chapterEnd) {
-      pushLog(job, `[INFO] Detectado capÃ­tulo ${chapterStart} (rastreado en tiempo real)`);
-    } else {
-      pushLog(job, `[INFO] Detectados caps ${chapterStart} al ${chapterEnd} (${tracker.count} caps rastreados)`);
+  // Buscar numeros solo de capitulos realmente subidos (fase upload + OK + completado/publicado).
+  const chapterNumbersSet = new Set();
+  for (const log of currentUploadLogs) {
+    const isOk = /\[(OK|CONFIRMADO)\]/i.test(log);
+    if (!isOk) continue;
+
+    const isUploadPhase = /\[phase:upload\]/i.test(log);
+    const isCompleted = /\bCompletado\b/i.test(log) || /\bpublicado\b/i.test(log);
+
+    if (isUploadPhase && isCompleted) {
+      let capRaw = null;
+      const capFromPrefix = log.match(/\[cap:(\d+(?:[.,]\d+)?)\]/i);
+      if (capFromPrefix) {
+        capRaw = capFromPrefix[1];
+      } else {
+        const capFromText = log.match(/\bCap(?:[i�]tulo)?\s*(\d+(?:[.,]\d+)?)/i);
+        if (capFromText) capRaw = capFromText[1];
+      }
+
+      if (capRaw) {
+        const num = Number(String(capRaw).replace(',', '.'));
+        if (Number.isFinite(num) && num > 0) {
+          chapterNumbersSet.add(num);
+        }
+      }
+      continue;
+    }
+
+    // Compatibilidad con linea legado/sistema
+    const legacyCompleted = log.match(/\[OK\][^\n\r]*\bCap(?:[i�]tulo)?\s*(\d+(?:[.,]\d+)?)[^\n\r]*\b(completado|publicado)\b/i);
+    if (legacyCompleted) {
+      const num = Number(String(legacyCompleted[1]).replace(',', '.'));
+      if (Number.isFinite(num) && num > 0) {
+        chapterNumbersSet.add(num);
+      }
     }
   }
 
-  // Preferir capítulos rastreados en tiempo real (no contaminados por logs de cola)
-  if (!(tracker && tracker.count > 0) && job.completedChaptersForNotify && job.completedChaptersForNotify.length > 0) {
-    const sorted = [...job.completedChaptersForNotify].sort((a, b) => a - b);
-    chapterStart = sorted[0];
-    chapterEnd = sorted[sorted.length - 1];
-    if (chapterStart === chapterEnd) {
-      pushLog(job, `[INFO] Detectado capítulo ${chapterStart} (rastreado en tiempo real)`);
-    } else {
-      pushLog(job, `[INFO] Detectados caps ${chapterStart} al ${chapterEnd} (${sorted.length} caps rastreados)`);
-    }
-  } else if (!(tracker && tracker.count > 0)) {
-    // Fallback: parsear logs de la subida actual
-    const startIndex = job.currentUploadStartLogIndex || 0;
-    const currentUploadLogs = job.logs.slice(startIndex);
-    const chapterNumbersSet = new Set();
+  const chapterNumbers = Array.from(chapterNumbersSet).sort((a, b) => a - b);
+  if (chapterNumbers.length > 0) {
+    chapterStart = chapterNumbers[0];
+    chapterEnd = chapterNumbers[chapterNumbers.length - 1];
+  } else {
+    pushLog(job, "[INFO] No se detectaron capitulos nuevos subidos en esta ejecucion. Notificacion automatica omitida.");
+    return;
+  }
 
-    for (const log of currentUploadLogs) {
-      const isOk = /\[(OK|CONFIRMADO)\]/i.test(log);
-      if (!isOk) continue;
-
-      const isUploadPhase = /\[phase:upload\]/i.test(log);
-      const isCompleted = /\bCompletado\b/i.test(log) || /\bpublicado\b/i.test(log);
-
-      if (isUploadPhase && isCompleted) {
-        let capRaw = null;
-        const capFromPrefix = log.match(/\[cap:(\d+(?:[.,]\d+)?)\]/i);
-        if (capFromPrefix) {
-          capRaw = capFromPrefix[1];
-        } else {
-          const capFromText = log.match(/\bCap(?:[i\u00ed]tulo)?\s*(\d+(?:[.,]\d+)?)/i);
-          if (capFromText) capRaw = capFromText[1];
-        }
-        if (capRaw) {
-          const num = Number(String(capRaw).replace(',', '.'));
-          if (Number.isFinite(num) && num > 0) chapterNumbersSet.add(num);
-        }
-        continue;
-      }
-
-      const legacyCompleted = log.match(/\[OK\][^\n\r]*\bCap(?:[i\u00ed]tulo)?\s*(\d+(?:[.,]\d+)?)[^\n\r]*\b(completado|publicado)\b/i);
-      if (legacyCompleted) {
-        const num = Number(String(legacyCompleted[1]).replace(',', '.'));
-        if (Number.isFinite(num) && num > 0) chapterNumbersSet.add(num);
-      }
-    }
-
-    const chapterNumbers = Array.from(chapterNumbersSet).sort((a, b) => a - b);
-    if (chapterNumbers.length > 0) {
-      chapterStart = chapterNumbers[0];
-      chapterEnd = chapterNumbers[chapterNumbers.length - 1];
-      if (chapterStart === chapterEnd) {
-        pushLog(job, `[INFO] Detectado capitulo ${chapterStart} (por logs)`);
-      } else {
-        pushLog(job, `[INFO] Detectados capitulos ${chapterStart} al ${chapterEnd} (por logs)`);
-      }
-    } else {
-      pushLog(job, "[INFO] No se detectaron capitulos nuevos subidos en esta ejecucion. Notificacion automatica omitida.");
-      return;
-    }
+  if (chapterStart === chapterEnd) {
+    pushLog(job, `[INFO] Detectado capitulo ${chapterStart}`);
+  } else {
+    pushLog(job, `[INFO] Detectados capitulos ${chapterStart} al ${chapterEnd}`);
   }
 
   const notificationScriptPath = path.join(APP_ROOT, "notification_publisher.js");
@@ -783,12 +364,8 @@ function startNext(job) {
   if (job.proc || job.status === "running" || job.status === "paused") return;
   while (job.queue.length) {
     const payload = job.queue.shift();
-    job.currentPayload = payload;
-    saveQueueState(); // Persistir cola + trabajo activo para recuperacion tras reinicio
     const task = buildTask(payload, job.sid);
     if (task.error) {
-      job.currentPayload = null;
-      saveQueueState();
       pushLog(job, `[ERR] Cola invalida: ${task.error}`);
       continue;
     }
@@ -797,20 +374,11 @@ function startNext(job) {
     job.endedAt = null;
     job.pauseFile = task.pauseFile;
     job.current = task.label;
-    // Evitar pausa fantasma por bandera residual de ejecuciones previas.
-    try {
-      if (job.pauseFile && fs.existsSync(job.pauseFile)) fs.unlinkSync(job.pauseFile);
-    } catch {}
 
     // Copiar autoNotify del payload al job
     if (typeof payload.autoNotify !== 'undefined') {
       job.autoNotify = Boolean(payload.autoNotify);
     }
-
-    // Resetear capítulos rastreados para esta nueva subida
-    const progressEntry = getOrCreateUploadProgress(payload, job.sid);
-    job.currentProgressKey = progressEntry.key;
-    seedNotifyTrackerFromProgress(job, progressEntry);
 
     // Marcar el inicio de esta subida para poder filtrar logs después
     job.currentUploadStartLogIndex = job.logs.length;
@@ -822,39 +390,14 @@ function startNext(job) {
     if (task.rangeLabel) pushLog(job, `Rango solicitado: ${task.rangeLabel}`);
     pushLog(job, "========================================");
 
-    // Keep child processes anchored to the app folder so portable launches
-    // still work even if the shortcut/start-in directory changes.
-    const proc = spawn(NODE_EXE, task.args, { cwd: APP_ROOT, env: task.env });
+    const proc = spawn(NODE_EXE, task.args, { cwd: process.cwd(), env: task.env });
     job.proc = proc;
 
 
     proc.stdout.on("data", (buf) => {
       const lines = String(buf).split(/\r?\n/);
       for (const line of lines) {
-        if (!line.trim()) continue;
-        pushLog(job, line);
-        const processingMatch = line.match(/\[cap:(\d+(?:[.,]\d+)?)\][^\n\r]*\[\s*INFO\s*\][^\n\r]*\bProcesando\s+Cap\b/i);
-        if (processingMatch) {
-          recordAttemptedChapterInProgress(job.currentProgressKey, processingMatch[1], "attempt");
-        }
-        const failedMatch = line.match(/\[cap:(\d+(?:[.,]\d+)?)\][^\n\r]*\[\s*ERROR\s*\][^\n\r]*\bFallo\s+Cap\b/i);
-        if (failedMatch) {
-          recordAttemptedChapterInProgress(job.currentProgressKey, failedMatch[1], "failed");
-        }
-        // Rastrear capítulos completados en tiempo real para notificación
-        const isOk = /\[(OK|CONFIRMADO)\]/i.test(line);
-        const hasChapterTag = /\[cap:(\d+(?:[.,]\d+)?)\]/i.test(line);
-        const indicatesCompletedChapter =
-          /\b(Completado|publicado)\b/i.test(line) ||
-          /\bsubido con exito\b/i.test(line);
-        if (isOk && hasChapterTag && indicatesCompletedChapter) {
-          const capMatch = line.match(/\[cap:(\d+(?:[.,]\d+)?)\]/i);
-          if (capMatch) {
-            recordCompletedChapterForNotify(job, capMatch[1]);
-            recordCompletedChapterInProgress(job.currentProgressKey, capMatch[1]);
-            recordAttemptedChapterInProgress(job.currentProgressKey, capMatch[1], "completed");
-          }
-        }
+        if (line.trim()) pushLog(job, line);
       }
     });
     proc.stderr.on("data", (buf) => {
@@ -869,10 +412,6 @@ function startNext(job) {
         job.status = code === 0 ? "done" : "error";
       }
       job.endedAt = new Date().toISOString();
-      updateUploadProgressStatus(
-        job.currentProgressKey,
-        job.status === "stopped" ? "stopped" : (code === 0 ? "done" : "interrupted"),
-      );
 
       // Separador visual para fin de subida
       pushLog(job, "");
@@ -880,13 +419,12 @@ function startNext(job) {
       pushLog(job, `SUBIDA FINALIZADA - Codigo: ${code} - Estado: ${code === 0 ? "EXITOSO" : "ERROR"}`);
       pushLog(job, "----------------------------------------");
 
-      // Publicar notificación automática si está habilitado, no pausado, y subida exitosa
-      if (code === 0 && job.autoNotify && !job.notifyPaused && job.current) {
+      // Publicar notificación automática si está habilitado y la subida fue exitosa
+      if (code === 0 && job.autoNotify && job.current) {
         pushLog(job, "");
         pushLog(job, ">>> PUBLICANDO NOTIFICACION AUTOMATICA...");
         try {
           await publishAutoNotification(job.current, job);
-          updateUploadProgressStatus(job.currentProgressKey, "notified");
           pushLog(job, ">>> NOTIFICACION PUBLICADA EXITOSAMENTE");
         } catch (err) {
           pushLog(job, `>>> ERROR EN NOTIFICACION: ${err.message}`);
@@ -894,11 +432,6 @@ function startNext(job) {
         pushLog(job, "");
       }
 
-      if (job.status === "done" || job.status === "error" || job.status === "stopped") {
-        job.currentProgressKey = null;
-      }
-      job.currentPayload = null;
-      saveQueueState();
       if (job.status !== "stopped") startNext(job);
     });
     return;
@@ -906,8 +439,6 @@ function startNext(job) {
   if (!job.queue.length) {
     job.status = "idle";
     job.current = null;
-    job.currentPayload = null;
-    saveQueueState();
     return;
   }
 }
@@ -928,16 +459,11 @@ app.get("/api/status", (req, res) => {
   const sid = getSessionId(req, res);
   const job = getJobState(sid);
   const from = Math.max(0, parseInt(req.query.from || "0", 10));
-  const queueFrom = Math.max(0, parseInt(req.query.queueFrom || "0", 10));
   const slice = job.logs.slice(from);
-  const queueSlice = (job.queueLogs || []).slice(queueFrom);
   return res.json({
     status: job.status,
     logs: slice,
     next: from + slice.length,
-    queueLogs: queueSlice,
-    queueNext: queueFrom + queueSlice.length,
-    notifyPaused: job.notifyPaused || false,
     startedAt: job.startedAt,
     endedAt: job.endedAt || null,
     queue: job.queue.length,
@@ -948,32 +474,16 @@ app.get("/api/status", (req, res) => {
       rootDir: q.rootDir || "",
       rangeStart: q.rangeStart || "",
       rangeEnd: q.rangeEnd || "",
-      resumeFromChapter: q.resumeFromChapter || "",
     })),
-    unresolvedProgress: getResolvableUploadProgressEntries(),
   });
 });
 
 app.post("/api/logs/clear", (req, res) => {
   const sid = getSessionId(req, res);
   const job = getJobState(sid);
-  const target = req.body && req.body.target;
-  if (!target || target === 'all') {
-    job.logs = [];
-    job.queueLogs = [];
-    job.currentUploadStartLogIndex = 0;
-    return res.json({ ok: true, next: 0, queueNext: 0 });
-  }
-  if (target === 'uploader') {
-    job.logs = [];
-    job.currentUploadStartLogIndex = 0;
-    return res.json({ ok: true, next: 0 });
-  }
-  if (target === 'queue') {
-    job.queueLogs = [];
-    return res.json({ ok: true, queueNext: 0 });
-  }
-  return res.json({ ok: true });
+  job.logs = [];
+  job.currentUploadStartLogIndex = 0;
+  return res.json({ ok: true, next: 0 });
 });
 
 
@@ -1056,10 +566,7 @@ app.post("/api/start", (req, res) => {
     return res.status(400).json({ error: taskCheck.error });
   }
   job.queue.push(req.body || {});
-  saveQueueState(); // Persistir nueva entrada en cola
-  const queueMsg = `[COLA] En cola (${job.queue.length}): ${req.body.resourceUrl || ""}`;
-  job.queueLogs.push(queueMsg);
-  if (job.queueLogs.length > 500) job.queueLogs.splice(0, job.queueLogs.length - 500);
+  pushLog(job, `[INFO] En cola: ${req.body.resourceUrl || ""}`);
   if (!enqueueOnly) startNext(job);
   return res.json({ ok: true, queued: job.queue.length });
 });
@@ -1200,12 +707,9 @@ app.post("/api/stop", (req, res) => {
   job.status = "stopped";
   job.endedAt = new Date().toISOString();
   pushLog(job, "Proceso detenido por el usuario.");
-  updateUploadProgressStatus(job.currentProgressKey, "stopped");
   try { if (job.pauseFile && fs.existsSync(job.pauseFile)) fs.unlinkSync(job.pauseFile); } catch { }
   try { job.proc.kill("SIGTERM"); } catch { }
   job.queue = [];
-  job.currentPayload = null;
-  saveQueueState();
   return res.json({ ok: true });
 });
 
@@ -1225,7 +729,6 @@ app.post("/api/queue/update", (req, res) => {
     return res.status(400).json({ error: check.error });
   }
   job.queue[index] = payload;
-  saveQueueState(); // Persistir cambio en elemento de cola
   return res.json({ ok: true });
 });
 
@@ -1237,7 +740,6 @@ app.post("/api/queue/delete", (req, res) => {
     return res.status(400).json({ error: "Indice invalido." });
   }
   job.queue.splice(index, 1);
-  saveQueueState(); // Persistir eliminacion de elemento
   return res.json({ ok: true });
 });
 
@@ -1255,148 +757,38 @@ app.post("/api/queue/move", (req, res) => {
   }
   const item = job.queue.splice(index, 1)[0];
   job.queue.splice(newIndex, 0, item);
-  saveQueueState(); // Persistir reorden de cola
   return res.json({ ok: true });
-});
-
-app.post("/api/progress/resolve", (req, res) => {
-  const { key, chapter, action } = req.body || {};
-  if (!key) return res.status(400).json({ error: "Falta key." });
-  const chapterToken = normalizeChapterTokenForProgress(chapter);
-  if (!chapterToken) return res.status(400).json({ error: "Capitulo invalido." });
-  const mode = action === "skip" ? "skip" : "manual";
-  const resolved = resolveProgressChapter(key, chapterToken, mode);
-  if (!resolved) return res.status(404).json({ error: "Progreso no encontrado." });
-  return res.json({ ok: true, progress: resolved });
-});
-
-app.post("/api/progress/delete", (req, res) => {
-  const { key } = req.body || {};
-  if (!key) return res.status(400).json({ error: "Falta key." });
-  if (!_uploadProgressState[key]) return res.status(404).json({ error: "Progreso no encontrado." });
-  
-  delete _uploadProgressState[key];
-  saveUploadProgressState();
-  return res.json({ ok: true, message: "Registro de progreso eliminado." });
-});
-
-app.post("/api/progress/resume", (req, res) => {
-  const sid = getSessionId(req, res);
-  const { key } = req.body || {};
-  if (!key || !_uploadProgressState[key]) {
-    return res.status(404).json({ error: "Progreso no encontrado." });
-  }
-
-  const entry = _uploadProgressState[key];
-  const job = getJobState(sid);
-  job.sid = sid;
-
-  // Si hay un proceso pausado activo, reanudarlo directamente en vez de encolar otro trabajo.
-  if (job.proc && job.status === "paused") {
-    try {
-      if (job.pauseFile && fs.existsSync(job.pauseFile)) fs.unlinkSync(job.pauseFile);
-    } catch {}
-    job.status = "running";
-    pushLog(job, "Proceso reanudado desde panel de recuperacion.");
-    job.queueLogs.push(`[COLA] Proceso reanudado (panel de recuperacion): ${entry.resourceUrl}`);
-    if (job.queueLogs.length > 500) job.queueLogs.splice(0, job.queueLogs.length - 500);
-    return res.json({ ok: true, resumed: true });
-  }
-
-  // Si el proceso aún está corriendo (no pausado), no se puede encolar encima.
-  if (job.proc) {
-    return res.status(409).json({ error: "Hay un proceso activo. Detén el proceso actual antes de reanudar desde el panel de recuperación." });
-  }
-
-  // Re-encolar el trabajo con los datos originales
-  const secrets = readSecrets();
-  const payload = {
-    username: secrets.username || "",
-    password: secrets.password || "",
-    resourceUrl: entry.resourceUrl,
-    rootDir: entry.rootDir,
-    rangeStart: entry.rangeStart,
-    rangeEnd: entry.rangeEnd,
-    resumeFromChapter: computeNextPendingChapter(entry),
-  };
-
-  if (!payload.username || !payload.password) {
-    return res.status(400).json({ error: "Faltan credenciales guardadas en el servidor para reanudar. Por favor, guárdalas primero." });
-  }
-
-  // Agregar a la cola
-  job.queue.push(payload);
-  saveQueueState();
-
-  job.queueLogs.push(`[COLA] Reanudacion solicitada: ${entry.resourceUrl} -> desde ${payload.resumeFromChapter || "auto"}`);
-  if (job.queueLogs.length > 500) job.queueLogs.splice(0, job.queueLogs.length - 500);
-
-  // Si el job estaba en estado de error, interrumpido, detenido o PAUSADO, permitir que se inicie
-  if (job.status === "error" || job.status === "interrupted" || job.status === "stopped" || job.status === "paused") {
-    job.status = "idle";
-  }
-
-  startNext(job);
-  return res.json({ ok: true, queued: job.queue.length });
 });
 
 app.post("/api/pause", (req, res) => {
   const sid = getSessionId(req, res);
   const job = jobs.get(sid);
-  if (!job) return res.status(404).json({ error: "No se encontro el estado del trabajo." });
-
-  if (!job.proc) {
-    // Si no hay proceso corriendo, pero hay cola o algo pendiente, permitir pausar el "loop"
-    job.status = "paused";
-    return res.json({ ok: true, message: "Cola pausada (sin proceso activo)." });
+  if (!job || !job.proc) {
+    return res.status(404).json({ error: "No hay proceso activo." });
   }
-
   try {
     fs.writeFileSync(job.pauseFile, "1");
   } catch {
-    return res.status(500).json({ error: "No se pudo crear el archivo de pausa." });
+    return res.status(500).json({ error: "No se pudo pausar." });
   }
   job.status = "paused";
   pushLog(job, "Proceso en pausa.");
-  updateUploadProgressStatus(job.currentProgressKey, "paused");
   return res.json({ ok: true });
-});
-
-app.post("/api/notify-pause", (req, res) => {
-  const sid = getSessionId(req, res);
-  const job = getJobState(sid);
-  job.notifyPaused = !job.notifyPaused;
-  const msg = job.notifyPaused
-    ? "[COLA] Notificación automática PAUSADA. No se publicará al terminar la subida."
-    : "[COLA] Notificación automática REANUDADA.";
-  job.queueLogs.push(msg);
-  if (job.queueLogs.length > 500) job.queueLogs.splice(0, job.queueLogs.length - 500);
-  return res.json({ ok: true, notifyPaused: job.notifyPaused });
 });
 
 app.post("/api/resume", (req, res) => {
   const sid = getSessionId(req, res);
   const job = jobs.get(sid);
-  if (!job) return res.status(404).json({ error: "No se encontro el estado del trabajo." });
-
-  if (!job.proc) {
-    // Si no hay proceso, pero el estado es pausado, simplemente despausar y arrancar
-    if (job.status === "paused") {
-       job.status = "idle";
-       startNext(job);
-       return res.json({ ok: true, message: "Cola reanudada." });
-    }
-    return res.status(404).json({ error: "No hay proceso activo para reanudar." });
+  if (!job || !job.proc) {
+    return res.status(404).json({ error: "No hay proceso activo." });
   }
-
   try {
     if (fs.existsSync(job.pauseFile)) fs.unlinkSync(job.pauseFile);
   } catch {
-    return res.status(500).json({ error: "No se pudo eliminar el archivo de pausa." });
+    return res.status(500).json({ error: "No se pudo reanudar." });
   }
   job.status = "running";
   pushLog(job, "Proceso reanudado.");
-  updateUploadProgressStatus(job.currentProgressKey, "running");
   return res.json({ ok: true });
 });
 
@@ -1542,7 +934,7 @@ app.post("/api/notification/publish", async (req, res) => {
   try {
     console.log("[PUBLISH] req.body recibido:", req.body);
     console.log("[PUBLISH] req.headers:", req.headers);
-    const { notificationId, customMessageOverride } = req.body;
+    const { notificationId } = req.body;
     console.log("[PUBLISH] notificationId extraído:", notificationId);
 
     if (!notificationId) {
@@ -1589,8 +981,7 @@ app.post("/api/notification/publish", async (req, res) => {
       username,
       password,
       notificationData.useCustomImage.toString(),
-      customImagePath || "",
-      String(customMessageOverride || "")
+      customImagePath || ""
     ];
 
     console.log("[PUBLISH] Ejecutando script:", scriptPath);
@@ -1663,7 +1054,7 @@ export function startServer({ port, host } = {}) {
   const listenPort = port || PORT;
   const listenHost = host || LISTEN_HOST;
   ensureDir(STORAGE_DIR);
-  const server = app.listen(listenPort, listenHost, () => {
+  serverInstance = app.listen(listenPort, listenHost, () => {
     console.log(`[WEB] Servidor listo en http://${listenHost}:${listenPort}`);
     if (listenHost === "0.0.0.0") {
       // Mostrar IPs locales para compartir
@@ -1677,18 +1068,6 @@ export function startServer({ port, host } = {}) {
       }
     }
   });
-  server.on("error", (err) => {
-    if (err && err.code === "EADDRINUSE") {
-      console.error(`[WEB] El puerto ${listenPort} ya esta en uso.`);
-      console.error(`[WEB] Si ya habias abierto el programa, usa esa misma ventana o abre http://127.0.0.1:${listenPort}`);
-      console.error("[WEB] Si es otro programa, cierra ese proceso o cambia PORT en .env.");
-      process.exitCode = 0;
-      return;
-    }
-    console.error("[WEB] No se pudo iniciar el servidor:", err && err.message ? err.message : err);
-    process.exitCode = 1;
-  });
-  serverInstance = server;
   return serverInstance;
 }
 

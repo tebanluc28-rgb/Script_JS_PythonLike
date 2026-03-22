@@ -63,6 +63,9 @@ for %%F in (
   "README.md"
   ".env"
   ".env.example"
+  "secrets.json"
+  "cookies.json"
+  "queue_state.json"
 ) do (
   if exist "%ROOT%%%~F" copy "%ROOT%%%~F" "%OUT_DIR%\" >nul
 )
@@ -173,20 +176,21 @@ echo Este paquete ya incluye:
 echo - Node portable
 echo - Dependencias npm
 echo - Chromium de Playwright
+echo - Configuracion y sesion actual
 echo.
 echo Uso:
 echo 1. Descomprimir el ZIP completo
 echo 2. Ejecutar INICIAR-ANIMEBBG.bat
 echo 3. Abrir http://localhost:3000
 echo.
-echo No requiere instalar Node, npm ni Playwright.
+echo No requiere instalar Node, npm, Playwright ni configurar nada.
 ) > "%OUT_DIR%\LEEME.txt"
 
 echo [8/8] Generando ZIP...
 if exist "%ZIP_PATH%" del /f /q "%ZIP_PATH%" >nul 2>nul
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
-  "Compress-Archive -Path (Join-Path '%OUT_DIR%' '*') -DestinationPath '%ZIP_PATH%' -Force;"
+  "Compress-Archive -Path '%OUT_DIR%' -DestinationPath '%ZIP_PATH%' -Force;"
 if errorlevel 1 (
   echo [WARN] No se pudo crear ZIP. La carpeta portable si fue creada.
 )

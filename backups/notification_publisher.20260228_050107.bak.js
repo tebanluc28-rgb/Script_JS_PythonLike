@@ -10,7 +10,6 @@ const username = args[3];
 const password = args[4];
 const useCustomImage = args[5] === 'true';
 const customImagePath = args[6];
-const customMessageOverride = String(args[7] ?? "");
 
 function parseChapterToken(raw) {
   const txt = String(raw || "").trim().replace(",", ".");
@@ -294,10 +293,7 @@ async function publishNotification() {
     }
 
     // Mensaje en texto plano (sin BBCode).
-    const autoMessage = `${chapterRange} del ${type} "${cleanTitle}" ya esta disponible y traducido al español, leer ahora: ${chapterLink}.`;
-    const customMessage = customMessageOverride.trim();
-    const message = customMessage || autoMessage;
-    const useCustomMessage = Boolean(customMessage);
+    const message = `${chapterRange} del ${type} "${cleanTitle}" ya esta disponible y traducido al español, leer ahora: ${chapterLink}.`;
     console.log("[NOTIF] Generando mensaje: " + chapterRange);
 
     // Navegar a post-update
@@ -323,84 +319,13 @@ async function publishNotification() {
       await editor.click();
       await page.waitForTimeout(300);
 
-      if (useCustomMessage) {
-        await editor.fill('');
-        await editor.type(message, { delay: 10 });
-        await page.waitForTimeout(500);
-      } else {
-        const fullText = textBeforeLink + linkText + textAfter;
-        await editor.fill('');
-        await editor.type(fullText, { delay: 10 });
-        await page.waitForTimeout(500);
+      const fullText = textBeforeLink + linkText + textAfter;
+      await editor.fill('');
+      await editor.type(fullText, { delay: 10 });
+      await page.waitForTimeout(500);
 
-          // Seleccionar "Capitulo X..." al inicio y aplicar negrita
-          await page.evaluate((chapterRangeText) => {
-            const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
-            if (!editorDiv) return;
-
-            const walker = document.createTreeWalker(editorDiv, NodeFilter.SHOW_TEXT, null);
-            let node;
-
-            while (node = walker.nextNode()) {
-              const text = node.textContent || '';
-              const index = text.indexOf(chapterRangeText);
-              if (index === -1) continue;
-
-              const range = document.createRange();
-              range.setStart(node, index);
-              range.setEnd(node, index + chapterRangeText.length);
-
-              const selection = window.getSelection();
-              selection.removeAllRanges();
-              selection.addRange(range);
-              return;
-            }
-          }, chapterRange);
-
-        await page.waitForTimeout(250);
-        await page.click('button[data-cmd="bold"], .fr-command[data-cmd="bold"]');
-        await page.waitForTimeout(250);
-
-          // Ahora seleccionar solo "leer ahora" usando triple-click y luego ajustar la selecciÃ³n
-          await page.evaluate((linkText) => {
-            const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
-            if (!editorDiv) return;
-
-            const walker = document.createTreeWalker(
-              editorDiv,
-              NodeFilter.SHOW_TEXT,
-              null
-            );
-
-            let node;
-            let found = false;
-
-            while (node = walker.nextNode()) {
-              const text = node.textContent;
-              const index = text.indexOf(linkText);
-
-              if (index !== -1) {
-                const range = document.createRange();
-                range.setStart(node, index);
-                range.setEnd(node, index + linkText.length);
-
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                found = true;
-                break;
-              }
-            }
-
-            return found;
-        }, linkText);
-
-        await page.waitForTimeout(500);
-
-        await page.click('button[data-cmd="bold"], .fr-command[data-cmd="bold"]');
-        await page.waitForTimeout(300);
-
-        await page.evaluate((linkText) => {
+        // Seleccionar "Capitulo X..." al inicio y aplicar negrita
+        await page.evaluate((chapterRangeText) => {
           const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
           if (!editorDiv) return;
 
@@ -408,69 +333,146 @@ async function publishNotification() {
           let node;
 
           while (node = walker.nextNode()) {
-            const text = node.textContent;
-            const index = text.indexOf(linkText);
+            const text = node.textContent || '';
+            const index = text.indexOf(chapterRangeText);
+            if (index === -1) continue;
 
-            if (index !== -1) {
-              const range = document.createRange();
-              range.setStart(node, index);
-              range.setEnd(node, index + linkText.length);
+            const range = document.createRange();
+            range.setStart(node, index);
+            range.setEnd(node, index + chapterRangeText.length);
 
-              const selection = window.getSelection();
-              selection.removeAllRanges();
-              selection.addRange(range);
-              break;
-            }
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return;
           }
-        }, linkText);
+        }, chapterRange);
 
-        await page.waitForTimeout(300);
+      await page.waitForTimeout(250);
+      await page.click('button[data-cmd="bold"], .fr-command[data-cmd="bold"]');
+      await page.waitForTimeout(250);
 
-        await page.click('button[data-cmd="insertLink"], .fr-command[data-cmd="insertLink"]');
-        await page.waitForTimeout(800);
-
-        const urlInput = page.locator('input[placeholder*="URL"], .fr-link-insert-layer input[type="text"]').first();
-        await urlInput.fill(chapterLink);
-        await page.waitForTimeout(300);
-
-        await page.click('button.fr-command[data-cmd="linkInsert"]');
-        await page.waitForTimeout(800);
-
+        // Ahora seleccionar solo "leer ahora" usando triple-click y luego ajustar la selecciÃ³n
         await page.evaluate((linkText) => {
           const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
           if (!editorDiv) return;
 
-          const links = editorDiv.querySelectorAll('a');
-          for (const link of links) {
-            if (link.textContent.includes(linkText)) {
-              const range = document.createRange();
-              range.selectNode(link);
+          // Crear un TreeWalker para encontrar todos los nodos de texto
+          const walker = document.createTreeWalker(
+            editorDiv,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
 
+          let node;
+          let found = false;
+
+          // Buscar el nodo de texto que contiene "leer ahora"
+          while (node = walker.nextNode()) {
+            const text = node.textContent;
+            const index = text.indexOf(linkText);
+
+            if (index !== -1) {
+              // Crear un rango para seleccionar solo "leer ahora"
+              const range = document.createRange();
+              range.setStart(node, index);
+              range.setEnd(node, index + linkText.length);
+
+              // Aplicar la selecciÃ³n
               const selection = window.getSelection();
               selection.removeAllRanges();
               selection.addRange(range);
+              found = true;
               break;
             }
           }
-        }, linkText);
 
-        await page.waitForTimeout(300);
+          return found;
+      }, linkText);
 
-        await page.evaluate(() => {
-          const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
-          if (!editorDiv) return;
+      await page.waitForTimeout(500);
 
-          const links = editorDiv.querySelectorAll('a');
-          for (const link of links) {
-            if (link.textContent.includes('leer ahora')) {
-              link.style.color = '#F37934';
-              break;
-            }
+      // Aplicar negrita
+      await page.click('button[data-cmd="bold"], .fr-command[data-cmd="bold"]');
+      await page.waitForTimeout(300);
+
+      // Volver a seleccionar el texto
+      await page.evaluate((linkText) => {
+        const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
+        if (!editorDiv) return;
+
+        const walker = document.createTreeWalker(editorDiv, NodeFilter.SHOW_TEXT, null);
+        let node;
+
+        while (node = walker.nextNode()) {
+          const text = node.textContent;
+          const index = text.indexOf(linkText);
+
+          if (index !== -1) {
+            const range = document.createRange();
+            range.setStart(node, index);
+            range.setEnd(node, index + linkText.length);
+
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            break;
           }
-        });
+        }
+      }, linkText);
 
-        await page.waitForTimeout(300);
-      }
+      await page.waitForTimeout(300);
+
+      // Hacer clic en el botÃ³n de enlace
+      await page.click('button[data-cmd="insertLink"], .fr-command[data-cmd="insertLink"]');
+      await page.waitForTimeout(800);
+
+      // Llenar el campo URL
+      const urlInput = page.locator('input[placeholder*="URL"], .fr-link-insert-layer input[type="text"]').first();
+      await urlInput.fill(chapterLink);
+      await page.waitForTimeout(300);
+
+      // Hacer clic en "Insertar"
+      await page.click('button.fr-command[data-cmd="linkInsert"]');
+      await page.waitForTimeout(800);
+
+      // Volver a seleccionar el enlace para aplicar color naranja
+      await page.evaluate((linkText) => {
+        const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
+        if (!editorDiv) return;
+
+        // Buscar el enlace <a> que contiene "leer ahora"
+        const links = editorDiv.querySelectorAll('a');
+        for (const link of links) {
+          if (link.textContent.includes(linkText)) {
+            const range = document.createRange();
+            range.selectNode(link);
+
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            break;
+          }
+        }
+      }, linkText);
+
+      await page.waitForTimeout(300);
+
+      // Aplicar color naranja #F37934 directamente
+      await page.evaluate(() => {
+        const editorDiv = document.querySelector('div.fr-element[contenteditable="true"]');
+        if (!editorDiv) return;
+
+        const links = editorDiv.querySelectorAll('a');
+        for (const link of links) {
+          if (link.textContent.includes('leer ahora')) {
+            link.style.color = '#F37934';
+            break;
+          }
+        }
+      });
+
+      await page.waitForTimeout(300);
 
     } else {
       const textarea = page.locator('textarea[name="message"]').first();

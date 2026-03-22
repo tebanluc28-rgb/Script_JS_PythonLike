@@ -4,3 +4,9 @@ cookies.json
 storage/
 _debug/
 secrets.json
+dist/
+logs/
+nodejs-portable/
+pw-browsers/
+queue_state.json
+nul

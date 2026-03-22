@@ -204,9 +204,10 @@ echo [8/8] Creando ZIP distribuible...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
   "$out='%OUT_DIR%';" ^
+  "$parent=Split-Path $out -Parent;" ^
   "$zip='%DIST_DIR%\AnimeBBG-Portable-1-03-26.zip';" ^
   "if (Test-Path $zip) { Remove-Item -Force $zip };" ^
-  "Compress-Archive -Path (Join-Path $out '*') -DestinationPath $zip -Force;"
+  "Compress-Archive -Path $out -DestinationPath $zip -Force;"
 if errorlevel 1 (
   echo [WARN] No se pudo crear ZIP automatico. La carpeta portable si fue creada.
 )
