@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ override: false });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3200;
 const APP_ROOT = process.env.APP_ROOT || process.cwd();
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const STORAGE_DIR = process.env.WEB_STORAGE_DIR || path.join(DATA_DIR, "storage");

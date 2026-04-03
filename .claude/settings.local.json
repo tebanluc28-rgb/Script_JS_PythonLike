@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(taskkill:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(cmd /c \"d:/DD - Descargas/Typper/AnimeBbg/Script_JS_PythonLike - copia/build-portable-full.bat\")",
+      "Bash(cmd /c \"\"\"d:\\\\DD - Descargas\\\\Typper\\\\AnimeBbg\\\\Script_JS_PythonLike - copia\\\\build-portable-full.bat\"\"\")"
     ]
   }
 }

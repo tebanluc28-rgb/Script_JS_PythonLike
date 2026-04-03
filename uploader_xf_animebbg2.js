@@ -66,6 +66,7 @@ const SAVE_MAX_RETRIES = parseInt(process.env.SAVE_MAX_RETRIES || "3", 10);
 const SAVE_MAX_WINDOW_S = parseInt(process.env.SAVE_MAX_WINDOW_S || "120", 10);
 
 const VERIFY_RETRIES = parseInt(process.env.VERIFY_RETRIES || "1", 10);
+const MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || "10000", 10);
 
 const RE_NEXT_BUTTON = /^\s*(?:siguiente|next|continuar|continue)\s*$/i;
 const RE_UPLOAD_NOW_BUTTON = /(?:subir\s+ahora|upload\s+now|start\s+upload)/i;
@@ -1501,31 +1502,94 @@ async function preprocessImages(images) {
     return images;
   }
 
-  const processedDir = path.join(os.tmpdir(), `xf_upload_${Date.now()}`);
-  ensureDir(processedDir);
+  if (!images.length) return images;
+
+  // Primera pasada: leer metadata de todas las imagenes y detectar si alguna supera MAX_IMAGE_HEIGHT
+  const metadatas = [];
+  let needsSlicing = false;
+  for (const src of images) {
+    try {
+      const meta = await sharp(src).metadata();
+      metadatas.push(meta);
+      const exifSwap = meta.orientation >= 5 && meta.orientation <= 8;
+      const effectiveHeight = exifSwap ? meta.width : meta.height;
+      if (effectiveHeight > MAX_IMAGE_HEIGHT) needsSlicing = true;
+    } catch {
+      metadatas.push(null);
+    }
+  }
+
+  // Si hay imagenes altas: guardar todo en subcarpeta persistente dentro del capitulo
+  // (el set completo queda disponible para resubida manual si algo falla)
+  // Si no: usar carpeta temporal como antes
+  let processedDir;
+  if (needsSlicing) {
+    const chapterDir = path.dirname(images[0]);
+    const chapterName = path.basename(chapterDir);
+    processedDir = path.join(chapterDir, chapterName);
+    ensureDir(processedDir);
+    report(`[INFO] Imagenes altas detectadas. Set procesado guardado en: ${processedDir}`);
+  } else {
+    processedDir = path.join(os.tmpdir(), `xf_upload_${Date.now()}`);
+    ensureDir(processedDir);
+  }
+
   const results = [];
+  let fileCounter = 0;
 
   report(`[INFO] Preprocesando ${images.length} imagenes...`);
   for (let i = 0; i < images.length; i++) {
     const src = images[i];
     const ext = path.extname(src).toLowerCase();
-    const dest = path.join(processedDir, `img_${String(i).padStart(4, "0")}${ext === ".webp" ? ".webp" : ".jpg"}`);
+    const meta = metadatas[i];
 
     try {
-      let pipeline = sharp(src).rotate(); // Corregir orientacion EXIF
-      const metadata = await pipeline.metadata();
+      if (!meta) throw new Error("metadata no disponible");
 
-      // Redimensionar si es excesivamente grande
-      if (metadata.width > 3000) {
-        pipeline = pipeline.resize(3000, null, { withoutEnlargement: true });
-      }
+      // Determinar dimensiones efectivas tras correccion EXIF (orientaciones 5-8 intercambian ancho/alto)
+      const exifSwap = meta.orientation >= 5 && meta.orientation <= 8;
+      const effectiveWidth = exifSwap ? meta.height : meta.width;
+      const effectiveHeight = exifSwap ? meta.width : meta.height;
 
-      if (ext === ".webp") {
-        await pipeline.webp({ quality: 82 }).toFile(dest);
+      if (effectiveHeight > MAX_IMAGE_HEIGHT) {
+        // Cortar en franjas de MAX_IMAGE_HEIGHT
+        let y = 0;
+        let partIndex = 0;
+        report(`[INFO] ${path.basename(src)} (${effectiveHeight}px) — dividiendo en partes de ${MAX_IMAGE_HEIGHT}px`);
+        while (y < effectiveHeight) {
+          const h = Math.min(MAX_IMAGE_HEIGHT, effectiveHeight - y);
+          const sliceDest = path.join(processedDir, `${String(fileCounter).padStart(4, "0")}${ext === ".webp" ? ".webp" : ".jpg"}`);
+          let slicePipeline = sharp(src)
+            .rotate()
+            .extract({ left: 0, top: y, width: effectiveWidth, height: h });
+          if (effectiveWidth > 3000) {
+            slicePipeline = slicePipeline.resize(3000, null, { withoutEnlargement: true });
+          }
+          if (ext === ".webp") {
+            await slicePipeline.webp({ quality: 82 }).toFile(sliceDest);
+          } else {
+            await slicePipeline.jpeg({ quality: 85, progressive: true, mozjpeg: true }).toFile(sliceDest);
+          }
+          results.push(sliceDest);
+          fileCounter++;
+          y += h;
+          partIndex++;
+        }
+        dbg(`${path.basename(src)}: ${partIndex} corte(s) generado(s)`);
       } else {
-        await pipeline.jpeg({ quality: 85, progressive: true, mozjpeg: true }).toFile(dest);
+        const dest = path.join(processedDir, `${String(fileCounter).padStart(4, "0")}${ext === ".webp" ? ".webp" : ".jpg"}`);
+        let pipeline = sharp(src).rotate(); // Corregir orientacion EXIF
+        if (effectiveWidth > 3000) {
+          pipeline = pipeline.resize(3000, null, { withoutEnlargement: true });
+        }
+        if (ext === ".webp") {
+          await pipeline.webp({ quality: 82 }).toFile(dest);
+        } else {
+          await pipeline.jpeg({ quality: 85, progressive: true, mozjpeg: true }).toFile(dest);
+        }
+        results.push(dest);
+        fileCounter++;
       }
-      results.push(dest);
     } catch (e) {
       dbg(`Error preprocesando ${path.basename(src)}: ${e.message}. Usando original.`);
       results.push(src);
@@ -1922,9 +1986,14 @@ async function waitForPublishCompletion(page, chaptersListUrl, chapterText, time
       lastPresenceCheckAt = elapsed;
       const publishedInList = await chapterExistsInList(page.context(), chaptersListUrl, chapterText).catch(() => false);
       if (publishedInList) {
-        lastPublishedSeenAt = elapsed;
+        if (lastPublishedSeenAt === 0) lastPublishedSeenAt = elapsed;
         if (queuedCount === 0) {
           report(`[OK] Publicacion confirmada por aparicion del capitulo ${chapterText} en /capitulos y cola vacia en batch.`);
+          return true;
+        }
+        const visibleFor = elapsed - lastPublishedSeenAt;
+        if (visibleFor >= 30000) {
+          report(`[OK] Publicacion confirmada. El capitulo ${chapterText} lleva ${Math.floor(visibleFor / 1000)}s visible en /capitulos (batch con ${queuedCount} elementos pendientes, se ignora).`);
           return true;
         }
         report(`[INFO] El capitulo ${chapterText} ya aparece en /capitulos, pero el batch aun conserva ${queuedCount} elementos. Esperando liberacion final...`);

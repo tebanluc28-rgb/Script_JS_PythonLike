@@ -9,4 +9,5 @@ logs/
 nodejs-portable/
 pw-browsers/
 queue_state.json
+upload_progress.json
 nul
