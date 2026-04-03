@@ -3,13 +3,13 @@ setlocal EnableExtensions
 chcp 65001 >nul
 
 echo ========================================
-echo  Construyendo portable 22-03-26 (sin Node)
+echo  Construyendo portable 23-03-26 (sin Node)
 echo ========================================
 echo.
 
 set "ROOT=%~dp0"
 set "DIST_DIR=%ROOT%dist"
-set "OUT_DIR=%DIST_DIR%\AnimeBBG-Portable-22-03-26"
+set "OUT_DIR=%DIST_DIR%\AnimeBBG-Portable-23-03-26"
 set "PW_PATH=%ROOT%pw-browsers"
 set "NODE_PORTABLE_DIR=%ROOT%nodejs-portable"
 set "NODE_LOCAL=%NODE_PORTABLE_DIR%\node.exe"
@@ -106,7 +106,7 @@ if exist "%ROOT%package-lock.json" copy "%ROOT%package-lock.json" "%OUT_DIR%\" >
   echo STORAGE_STATE=cookies.json
   echo.
   echo # Web server
-  echo PORT=3000
+  echo PORT=3200
   echo LISTEN_HOST=127.0.0.1
   echo WEB_STORAGE_DIR=storage
   echo COOKIE_SECURE=0
@@ -143,7 +143,7 @@ echo if not defined LOCALE set "LOCALE=es-ES"
 echo if not defined TZ set "TZ=America/Mexico_City"
 echo if not defined HEADLESS set "HEADLESS=true"
 echo cd /d "%%ROOT%%"
-echo start "" http://localhost:3000
+echo start "" http://localhost:3200
 echo "%%NODE%%" "%%ROOT%%web_server.js"
 echo if errorlevel 1 ^(
 echo   echo.
@@ -167,20 +167,20 @@ echo set "TZ=America/Mexico_City"
 echo set "HEADLESS=false"
 echo set "DEBUG=1"
 echo cd /d "%%ROOT%%"
-echo start "" http://localhost:3000
+echo start "" http://localhost:3200
 echo "%%NODE%%" "%%ROOT%%web_server.js"
 echo if errorlevel 1 pause
 ) > "%OUT_DIR%\INICIAR-ANIMEBBG-DEBUG.bat"
 
 (
 echo @echo off
-echo start "" "http://localhost:3000"
+echo start "" "http://localhost:3200"
 ) > "%OUT_DIR%\ABRIR-PANEL.bat"
 
 echo [7/8] Escribiendo guia de uso...
 (
 echo =====================================
-echo AnimeBBG Uploader - Portable 22-03-26
+echo AnimeBBG Uploader - Portable 23-03-26
 echo =====================================
 echo.
 echo Esta version ya incluye todo:
@@ -191,7 +191,7 @@ echo.
 echo USO PARA EL USUARIO FINAL:
 echo 1. Descomprimir esta carpeta
 echo 2. Ejecutar INICIAR-ANIMEBBG.bat
-echo 3. Usar el panel en http://localhost:3000
+echo 3. Usar el panel en http://localhost:3200
 echo 4. Si falla en otra PC, usar INICIAR-ANIMEBBG-DEBUG.bat y compartir logs/
 echo.
 echo No necesita instalar Node.js ni ejecutar npm.
@@ -205,7 +205,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
   "$out='%OUT_DIR%';" ^
   "$parent=Split-Path $out -Parent;" ^
-  "$zip='%DIST_DIR%\AnimeBBG-Portable-22-03-26.zip';" ^
+  "$zip='%DIST_DIR%\AnimeBBG-Portable-23-03-26.zip';" ^
   "if (Test-Path $zip) { Remove-Item -Force $zip };" ^
   "Compress-Archive -Path $out -DestinationPath $zip -Force;"
 if errorlevel 1 (
@@ -214,10 +214,10 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
-echo  PORTABLE 22-03-26 LISTO
+echo  PORTABLE 23-03-26 LISTO
 echo ========================================
 echo Carpeta: %OUT_DIR%
-echo ZIP:     %DIST_DIR%\AnimeBBG-Portable-22-03-26.zip
+echo ZIP:     %DIST_DIR%\AnimeBBG-Portable-23-03-26.zip
 echo.
 echo Comparte el ZIP y el usuario solo ejecuta INICIAR-ANIMEBBG.bat
 echo.
