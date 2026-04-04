@@ -1203,7 +1203,6 @@ app.post("/api/stop", (req, res) => {
   updateUploadProgressStatus(job.currentProgressKey, "stopped");
   try { if (job.pauseFile && fs.existsSync(job.pauseFile)) fs.unlinkSync(job.pauseFile); } catch { }
   try { job.proc.kill("SIGTERM"); } catch { }
-  job.queue = [];
   job.currentPayload = null;
   saveQueueState();
   return res.json({ ok: true });
@@ -1288,6 +1287,7 @@ app.post("/api/progress/resume", (req, res) => {
   }
 
   const entry = _uploadProgressState[key];
+  const mode = (req.body && req.body.mode) === "back" ? "back" : "front";
   const job = getJobState(sid);
   job.sid = sid;
 
@@ -1324,8 +1324,12 @@ app.post("/api/progress/resume", (req, res) => {
     return res.status(400).json({ error: "Faltan credenciales guardadas en el servidor para reanudar. Por favor, guárdalas primero." });
   }
 
-  // Agregar a la cola
-  job.queue.push(payload);
+  // front = al frente (Reanudar primero), back = al final (Encolar al final)
+  if (mode === "back") {
+    job.queue.push(payload);
+  } else {
+    job.queue.unshift(payload);
+  }
   saveQueueState();
 
   job.queueLogs.push(`[COLA] Reanudacion solicitada: ${entry.resourceUrl} -> desde ${payload.resumeFromChapter || "auto"}`);

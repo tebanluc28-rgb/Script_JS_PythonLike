@@ -68,6 +68,7 @@ const SAVE_MAX_WINDOW_S = parseInt(process.env.SAVE_MAX_WINDOW_S || "120", 10);
 const VERIFY_RETRIES = parseInt(process.env.VERIFY_RETRIES || "1", 10);
 const MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || "10000", 10);
 
+
 const RE_NEXT_BUTTON = /^\s*(?:siguiente|next|continuar|continue)\s*$/i;
 const RE_UPLOAD_NOW_BUTTON = /(?:subir\s+ahora|upload\s+now|start\s+upload)/i;
 const RE_CONFIRM_PUBLISH_BUTTON = /(?:confirmar\s+y\s+publicar|confirm\s+and\s+publish)/i;
@@ -2014,6 +2015,46 @@ async function waitForPublishCompletion(page, chaptersListUrl, chapterText, time
   throw new Error(`No se confirmo la publicacion final. Se agoto la espera con URL actual: ${page.url()}`);
 }
 
+async function waitForPreviews(page, draftId, timeoutMs = 300000) {
+  if (!draftId) {
+    report("[WARN] No se capturo draft_id; se omite espera de previews.");
+    return;
+  }
+  const url = `${BASE_URL.replace(/\/$/, "")}/libreria/manga-uploader/batch-page-status?draft_id=${encodeURIComponent(draftId)}&_xfResponseType=json`;
+  const t0 = Date.now();
+  let lastLogged = -1;
+
+  report(`[INFO] Verificando previews (draft_id: ${draftId})...`);
+  while (Date.now() - t0 < timeoutMs) {
+    try {
+      const res = await page.evaluate(async (u) => {
+        const r = await fetch(u, { credentials: "include" });
+        return r.ok ? r.json() : null;
+      }, url);
+
+      if (res && res.chapters && res.chapters[0]) {
+        const ch = res.chapters[0];
+        const total = ch.session_total_count || 0;
+        const ready = ch.session_ready_count || 0;
+        const elapsed = Math.floor((Date.now() - t0) / 1000);
+        const bucket = Math.floor(elapsed / 5);
+        if (bucket !== lastLogged) {
+          report(`[INFO] Previews: ${ready}/${total} listos (${elapsed}s)`);
+          lastLogged = bucket;
+        }
+        if (total > 0 && ready >= total) {
+          report(`[OK] Previews generados: ${ready}/${total}.`);
+          return;
+        }
+      }
+    } catch (e) {
+      dbg(`waitForPreviews error: ${e.message}`);
+    }
+    await page.waitForTimeout(5000);
+  }
+  report(`[WARN] Timeout esperando previews. Continuando de todas formas.`);
+}
+
 async function finalizePublishFromStepper(page, expectedCount, chaptersListUrl, chapterText) {
   report("[INFO] Verificando confirmacion final de publicacion...");
   let inStep4 = await waitForStepperStep(page, 4, 5000);
@@ -2103,7 +2144,28 @@ async function processOneChapter(page, chaptersListUrl, resourceUrl, chapter) {
       report(`[INFO] Procesando Cap ${chapter.number}...`);
     }
 
+    let capturedDraftId = null;
+    const onResponse = async (response) => {
+      try {
+        if (!response.url().includes("batch-save-step")) return;
+        const json = await response.json().catch(() => null);
+        if (json && json.draft_id && !capturedDraftId) {
+          capturedDraftId = json.draft_id;
+          dbg(`draft_id capturado: ${capturedDraftId}`);
+        }
+      } catch {}
+    };
+    page.on("response", onResponse);
+
     try {
+      const chapterLabel = chapter.uploadNumber || chapter.number;
+      const alreadyOnWeb = await chapterExistsInList(page.context(), chaptersListUrl, chapterLabel).catch(() => false);
+      if (alreadyOnWeb) {
+        page.off("response", onResponse);
+        report(`[SKIP] Cap ${chapter.number} ya existe en la web (subido manualmente). Se omite.`);
+        return true;
+      }
+
       await openAddChapterOverlay(page, chaptersListUrl, resourceUrl);
       await fillOverlayCreateChapter(page, chapter.uploadNumber || chapter.number, chapter.extra || "");
 
@@ -2117,9 +2179,12 @@ async function processOneChapter(page, chaptersListUrl, resourceUrl, chapter) {
       }
 
       await finalizePublishFromStepper(page, processedImages.length, chaptersListUrl, chapter.uploadNumber || chapter.number);
+      page.off("response", onResponse);
+      await waitForPreviews(page, capturedDraftId);
       report(`[OK] Cap ${chapter.number} subido con exito.`);
       return true;
     } catch (e) {
+      page.off("response", onResponse);
       report(`[ERROR] Fallo Cap ${chapter.number}: ${e.message}`);
       await snap(page, `FAIL_cap_${chapter.number}`);
       return false;

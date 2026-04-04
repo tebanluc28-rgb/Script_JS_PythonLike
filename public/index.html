@@ -1605,7 +1605,11 @@
               </button>
               <button type="button" data-progress-action="resume" data-progress-key="${escapeHtml(it.key)}" data-progress-chapter="${escapeHtml(String(nextPending))}"
                 style="background: linear-gradient(135deg, rgba(56,189,248,0.22), rgba(14,165,233,0.18)); color:#bae6fd; border:1px solid rgba(56,189,248,0.35);">
-                Reanudar
+                Reanudar primero
+              </button>
+              <button type="button" data-progress-action="enqueue" data-progress-key="${escapeHtml(it.key)}" data-progress-chapter="${escapeHtml(String(nextPending))}"
+                style="background: linear-gradient(135deg, rgba(139,92,246,0.22), rgba(109,40,217,0.18)); color:#ede9fe; border:1px solid rgba(139,92,246,0.35);">
+                Encolar al final
               </button>
               <button type="button" data-progress-action="delete" data-progress-key="${escapeHtml(it.key)}"
                 style="background: linear-gradient(135deg, rgba(239,68,68,0.22), rgba(220,38,38,0.18)); color:#fecaca; border:1px solid rgba(239,68,68,0.35);">
@@ -2178,17 +2182,17 @@
         const key = btn.getAttribute("data-progress-key");
         const chapter = btn.getAttribute("data-progress-chapter");
         const action = btn.getAttribute("data-progress-action");
-        if (!key || (!chapter && action !== "resume" && action !== "delete")) return;
+        if (!key || (!chapter && action !== "resume" && action !== "enqueue" && action !== "delete")) return;
 
         btn.disabled = true;
         try {
-          let endpoint = action === "resume" ? "/api/progress/resume" : "/api/progress/resolve";
+          let endpoint = (action === "resume" || action === "enqueue") ? "/api/progress/resume" : "/api/progress/resolve";
           if (action === "delete") endpoint = "/api/progress/delete";
 
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key, chapter, action }),
+            body: JSON.stringify({ key, chapter, action, mode: action === "enqueue" ? "back" : "front" }),
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
@@ -2199,8 +2203,10 @@
             if (data.resumed) {
               addLog(`[INFO] Proceso reanudado desde el panel de recuperación.`);
             } else {
-              addLog(`[INFO] Trabajo encolado para reanudar desde capítulo ${chapter}.`);
+              addLog(`[INFO] Trabajo encolado al frente para reanudar desde capítulo ${chapter}.`);
             }
+          } else if (action === "enqueue") {
+            addLog(`[INFO] Trabajo encolado al final para reanudar desde capítulo ${chapter}.`);
           } else if (action === "skip") {
             addLog(`[INFO] Capítulo ${chapter} marcado para saltarse y continuar desde el siguiente.`);
           } else if (action === "delete") {
