@@ -2164,14 +2164,6 @@ async function processOneChapter(page, chaptersListUrl, resourceUrl, chapter) {
     page.on("response", onResponse);
 
     try {
-      const chapterLabel = chapter.uploadNumber || chapter.number;
-      const alreadyOnWeb = await chapterExistsInList(page.context(), chaptersListUrl, chapterLabel).catch(() => false);
-      if (alreadyOnWeb) {
-        page.off("response", onResponse);
-        report(`[SKIP] Cap ${chapter.number} ya existe en la web (subido manualmente). Se omite.`);
-        return true;
-      }
-
       await openAddChapterOverlay(page, chaptersListUrl, resourceUrl);
       await fillOverlayCreateChapter(page, chapter.uploadNumber || chapter.number, chapter.extra || "");
 
