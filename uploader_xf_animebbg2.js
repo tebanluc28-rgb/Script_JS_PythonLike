@@ -1158,7 +1158,7 @@ async function fillOverlayCreateChapter(page, chapterNumber, chapterExtra = "") 
   let skippedToStep3 = false;
   {
     const t0 = Date.now();
-    const combinedTimeoutMs = 25000;
+    const combinedTimeoutMs = 45000;
     while (Date.now() - t0 < combinedTimeoutMs) {
       const [s2, s3] = await Promise.all([
         waitForStepperStep(page, 2, 300).catch(() => false),
@@ -1721,9 +1721,8 @@ async function waitUploadsComplete(page, expectedCount, timeoutMs = 600000) {
       stableIterations++;
     }
 
-    let isComplete = false;
-    if (progStr && progStr.includes("100%")) isComplete = true;
-    if (progStr && progStr.includes(`${expectedCount}/${expectedCount}`)) isComplete = true;
+    // Solo confiar en el conteo exacto, no en "100%" que puede aparecer antes de que todas las imagenes finalicen
+    const isComplete = progStr ? progStr.includes(`${expectedCount}/${expectedCount}`) : false;
 
     if (isComplete) {
        await page.waitForTimeout(2000);
@@ -2074,9 +2073,16 @@ async function finalizePublishFromStepper(page, expectedCount, chaptersListUrl, 
     throw new Error("No se detecto el Paso 4 de confirmacion.");
   }
 
-  const summaryCount = await getStep4SummaryPageCount(page);
+  let summaryCount = await getStep4SummaryPageCount(page);
   if (summaryCount === null) {
     throw new Error("No se pudo leer el resumen del Paso 4.");
+  }
+
+  // Si el conteo no coincide, reintentar hasta 3 veces con pausa (el servidor puede tardar en registrar la ultima imagen)
+  for (let retry = 0; retry < 3 && summaryCount !== expectedCount; retry++) {
+    report(`[INFO] Resumen Paso 4: ${summaryCount}/${expectedCount} paginas. Esperando que el servidor finalice... (intento ${retry + 1}/3)`);
+    await page.waitForTimeout(5000);
+    summaryCount = await getStep4SummaryPageCount(page) ?? summaryCount;
   }
 
   report(`[INFO] Resumen Paso 4: ${summaryCount}/${expectedCount} paginas.`);
