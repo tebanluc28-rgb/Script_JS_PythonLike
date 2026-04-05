@@ -796,7 +796,7 @@ async function openAddChapterOverlay(page, chaptersListUrl, resourceUrl) {
     try {
       if ((await btn.count()) > 0) {
         try { await btn.first().scrollIntoViewIfNeeded(); } catch {}
-        await btn.first().click({ timeout: 3000 });
+        await btn.first().click({ timeout: 15000 });
         await page.waitForLoadState("domcontentloaded");
         if (await isStepperWizardPage(page)) {
           await snap(page, `11_stepper_by_button_try${attempt}`);
