@@ -1135,6 +1135,13 @@ async function fillOverlayCreateChapter(page, chapterNumber, chapterExtra = "") 
     throw new Error("No se detecto el stepper de capitulos.");
   }
 
+  // Si el stepper ya arranco en Paso 3 (borrador reutilizado), se limpia y se retorna
+  const alreadyStep3 = await waitForStepperStep(page, 3, 2000).catch(() => false);
+  if (alreadyStep3) {
+    report("[INFO] Stepper ya esta en Paso 3 al entrar; se limpia la cola residual y se continua.");
+    return;
+  }
+
   const inStep1 = await waitForStepperStep(page, 1, 10000);
   if (!inStep1) {
     const hasChapterInput = await hasStepperChapterNumberField(page);
