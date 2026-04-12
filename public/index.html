@@ -886,7 +886,7 @@
       </div>
 
       <!-- Progreso General -->
-      <div id="progressSection" style="display: none; margin-top: 16px;">
+      <div id="progressSection" style="margin-top: 16px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
           <span style="font-weight: 600; color: var(--accent);">Progreso General</span>
           <span id="overallProgress" style="font-size: 0.9rem; color: var(--muted);">0 / 0 capítulos</span>
@@ -938,9 +938,6 @@
           <button id="clearAllLogsBtn" type="button" class="log-action-btn" style="background: linear-gradient(135deg, #64748b, #475569); color: white;">
             🗑️ Todos
           </button>
-          <button id="clearUploaderLogsBtn" type="button" class="log-action-btn">
-            📤 Subidor
-          </button>
           <button id="clearNotificationLogsBtn" type="button" class="log-action-btn">
             🔔 Notif.
           </button>
@@ -956,13 +953,6 @@
               <span id="queueLogCount">0 lineas</span>
             </div>
             <div class="log-container" id="queueLogContainer" style="height: 60px; max-height: 60px;"></div>
-          </div>
-          <div>
-            <div class="log-panel-title" style="margin-bottom: 3px;">
-              <span>Subidor</span>
-              <span id="uploaderLogCount">0 lineas</span>
-            </div>
-            <div class="log-container" id="uploaderLogContainer" style="height: 170px; max-height: 170px;"></div>
           </div>
           <div>
             <div class="log-panel-title" style="margin-bottom: 3px;">
@@ -1142,18 +1132,15 @@
     const queueItems = document.getElementById("queueItems");
     const queueList = document.getElementById("queueList");
     const resumeProgressSection = document.getElementById("resumeProgressSection");
-    const uploaderLogContainer = document.getElementById("uploaderLogContainer");
     const notificationLogContainer = document.getElementById("notificationLogContainer");
     const statusText = document.getElementById("statusText");
     const statusDot = document.getElementById("statusDot");
     const rootDirHint = document.getElementById("rootDirHint");
     const rootDirInput = document.getElementById("rootDir");
     const clearAllLogsBtn = document.getElementById("clearAllLogsBtn");
-    const clearUploaderLogsBtn = document.getElementById("clearUploaderLogsBtn");
     const clearNotificationLogsBtn = document.getElementById("clearNotificationLogsBtn");
     const clearQueueLogsBtn = document.getElementById("clearQueueLogsBtn");
     const logCountSpan = document.getElementById("logCount");
-    const uploaderLogCountSpan = document.getElementById("uploaderLogCount");
     const notificationLogCountSpan = document.getElementById("notificationLogCount");
     const queueLogContainer = document.getElementById("queueLogContainer");
     const queueLogCountSpan = document.getElementById("queueLogCount");
@@ -1183,11 +1170,9 @@
     let isPaused = false;
     let isNotifyPaused = false;
     const maxLogLines = 500;
-    let uploaderLogLines = [];
     let notificationLogLines = [];
     let queueLogLines = [];
     // Contadores de líneas ya renderizadas (para append incremental)
-    let renderedUploaderCount = 0;
     let renderedNotificationCount = 0;
     let renderedQueueCount = 0;
     const LS_KEYS = {
@@ -1283,11 +1268,9 @@
     }
 
     function updateLogCounters() {
-      const uploaderCount = uploaderLogLines.length;
       const notificationCount = notificationLogLines.length;
       const queueCount = queueLogLines.length;
-      const totalCount = uploaderCount + notificationCount + queueCount;
-      if (uploaderLogCountSpan) uploaderLogCountSpan.textContent = `${uploaderCount} lineas`;
+      const totalCount = notificationCount + queueCount;
       if (notificationLogCountSpan) notificationLogCountSpan.textContent = `${notificationCount} lineas`;
       if (queueLogCountSpan) queueLogCountSpan.textContent = `${queueCount} lineas`;
       if (logCountSpan) logCountSpan.textContent = `${totalCount} lineas`;
@@ -1295,26 +1278,15 @@
 
     // Append solo líneas nuevas al contenedor (evita reflow total)
     function appendToLogContainer(container, lines) {
+      const frag = document.createDocumentFragment();
       for (const line of lines) {
-        container.appendChild(document.createTextNode(line + "\n"));
+        frag.appendChild(document.createTextNode(line + "\n"));
       }
+      container.appendChild(frag);
       container.scrollTop = container.scrollHeight;
     }
 
     function refreshLogPanels() {
-      if (uploaderLogContainer) {
-        if (uploaderLogLines.length < renderedUploaderCount) {
-          // Líneas eliminadas (trim) → reconstruir
-          uploaderLogContainer.textContent = uploaderLogLines.join("\n") + "\n";
-          renderedUploaderCount = uploaderLogLines.length;
-        } else {
-          const newLines = uploaderLogLines.slice(renderedUploaderCount);
-          if (newLines.length > 0) {
-            appendToLogContainer(uploaderLogContainer, newLines);
-            renderedUploaderCount = uploaderLogLines.length;
-          }
-        }
-      }
       if (notificationLogContainer) {
         if (notificationLogLines.length < renderedNotificationCount) {
           notificationLogContainer.textContent = notificationLogLines.join("\n") + "\n";
@@ -1349,13 +1321,7 @@
         notificationLogLines.push(text);
         if (notificationLogLines.length > maxLogLines) {
           notificationLogLines = notificationLogLines.slice(-maxLogLines);
-          renderedNotificationCount = 0;
-        }
-      } else {
-        uploaderLogLines.push(text);
-        if (uploaderLogLines.length > maxLogLines) {
-          uploaderLogLines = uploaderLogLines.slice(-maxLogLines);
-          renderedUploaderCount = 0;
+          renderedNotificationCount = maxLogLines + 1; // fuerza rebuild del DOM
         }
       }
     }
@@ -1387,9 +1353,6 @@
         });
       } catch {}
       if (target === 'all' || target === 'uploader') {
-        uploaderLogLines = [];
-        renderedUploaderCount = 0;
-        if (uploaderLogContainer) uploaderLogContainer.textContent = "";
         if (target === 'all') logIndex = 0;
       }
       if (target === 'all' || target === 'notification') {
@@ -1451,26 +1414,27 @@
     }
 
     // Función para actualizar progreso general
-    function updateOverallProgress(completed, total) {
-      if (total === 0) {
-        progressSection.style.display = "none";
-        return;
-      }
+    // currentIdx = índice del capítulo en proceso (1-based), displayTotal = total a mostrar
+    function updateOverallProgress(completed, total, currentIdx, displayTotal) {
+      if (total === 0) return;
 
-      progressSection.style.display = "block";
       const percent = Math.round((completed / total) * 100);
       overallProgressBar.style.width = `${percent}%`;
       overallProgressText.textContent = `${percent}%`;
-      overallProgress.textContent = `${completed} / ${total} capítulos`;
+      // Mostrar "Capítulo X / Y" donde X es el capítulo en proceso
+      const idx = currentIdx || (completed + 1);
+      const tot = displayTotal || total;
+      overallProgress.textContent = completed >= total
+        ? `${total} / ${total} capítulos`
+        : `Capítulo ${idx} / ${tot}`;
 
-      const pending = total - completed;
       statsCompleted.textContent = completed;
-      statsPending.textContent = pending;
+      statsPending.textContent = Math.max(0, total - completed - (completed < total ? 1 : 0));
     }
 
     // Función para actualizar progreso del capítulo actual
     function updateCurrentChapter(name, current, total) {
-      if (!name || total === 0) {
+      if (!name) {
         currentChapterSection.style.display = "none";
         statsProcessing.textContent = "0";
         return;
@@ -1478,11 +1442,17 @@
 
       currentChapterSection.style.display = "block";
       statsProcessing.textContent = "1";
-      const percent = Math.round((current / total) * 100);
-      currentChapterBar.style.width = `${percent}%`;
-      currentChapterText.textContent = `${percent}%`;
       currentChapterName.textContent = name;
-      currentChapterProgress.textContent = `${current} / ${total} imágenes`;
+      if (total > 0) {
+        const percent = Math.round((current / total) * 100);
+        currentChapterBar.style.width = `${percent}%`;
+        currentChapterText.textContent = `${percent}%`;
+        currentChapterProgress.textContent = `${current} / ${total} imágenes`;
+      } else {
+        currentChapterBar.style.width = "0%";
+        currentChapterText.textContent = "Preparando...";
+        currentChapterProgress.textContent = "esperando subida";
+      }
     }
 
     // Función para toggle de logs
@@ -1681,51 +1651,6 @@
       }
     }
 
-    // Variables para rastrear progreso
-    let totalChapters = 0;
-    let completedChapters = 0;
-    let currentChapterInfo = { name: "", current: 0, total: 0 };
-
-    // Parsear logs para extraer información de progreso
-    function parseProgressFromLogs(logs) {
-      for (const log of logs) {
-        // Detectar total de capítulos: "📦 Capítulos a procesar: 10"
-        const totalMatch = log.match(/📦 Capítulos a procesar:\s*(\d+)/i);
-        if (totalMatch) {
-          totalChapters = parseInt(totalMatch[1], 10);
-          completedChapters = 0;
-          currentChapterInfo = { name: "", current: 0, total: 0 };
-        }
-
-        // Detectar capítulo procesándose: "[INFO] Procesando nombre-cap: 25 imágenes"
-        const processingMatch = log.match(/\[INFO\]\s*Procesando\s+(.+?):\s*(\d+)\s*imágenes/i);
-        if (processingMatch) {
-          currentChapterInfo.name = processingMatch[1].trim();
-          currentChapterInfo.total = parseInt(processingMatch[2], 10);
-          currentChapterInfo.current = 0;
-        }
-
-        // Detectar subida de imágenes: "[SUBIENDO] Cap X: iniciando subida de Y imágenes"
-        const uploadingMatch = log.match(/\[SUBIENDO\].*?iniciando subida de\s+(\d+)\s*imágenes/i);
-        if (uploadingMatch && currentChapterInfo.total > 0) {
-          const uploading = parseInt(uploadingMatch[1], 10);
-          currentChapterInfo.current = currentChapterInfo.total - uploading;
-        }
-
-        // Detectar capítulo completado: "[OK] Capítulo ... subido y verificado"
-        const completedMatch = log.match(/\[OK\].*?Capítulo\s+[\d.]+.*?subido y verificado/i);
-        if (completedMatch) {
-          completedChapters++;
-          currentChapterInfo = { name: "", current: 0, total: 0 };
-        }
-
-        // Detectar capítulo omitido: "[OK] ... ya tiene ... omitiendo"
-        const skippedMatch = log.match(/\[OK\].*?ya tiene.*?omitiendo/i);
-        if (skippedMatch) {
-          completedChapters++;
-        }
-      }
-    }
 
     async function pollStatus() {
       if (polling) return;
@@ -1764,12 +1689,12 @@
           pauseResumeBtn.disabled = false;
         }
         if (Array.isArray(data.logs) && data.logs.length) {
-          appendLogBatch(data.logs);
+          // Solo renderizar líneas de notificación; el panel de subidor fue reemplazado por barras
+          for (const line of data.logs) {
+            if (isNotificationLogLine(line)) appendLogLine(line);
+          }
+          refreshLogPanels();
           logIndex = data.next;
-
-          // Parsear logs de subidor para actualizar progreso
-          const uploaderOnly = data.logs.filter((line) => !isNotificationLogLine(line));
-          parseProgressFromLogs(uploaderOnly);
         }
 
         // Logs de cola (panel separado)
@@ -1778,7 +1703,7 @@
             queueLogLines.push(line);
             if (queueLogLines.length > maxLogLines) {
               queueLogLines = queueLogLines.slice(-maxLogLines);
-              renderedQueueCount = 0;
+              renderedQueueCount = maxLogLines + 1; // fuerza rebuild del DOM
             }
           }
           queueLogIndex = data.queueNext || (queueLogIndex + data.queueLogs.length);
@@ -1791,22 +1716,28 @@
           updateNotifyPauseUI();
         }
 
-        // Actualizar UI de progreso basándose en el estado
+        // Actualizar barras de progreso desde datos del servidor
+        const srvTotal = data.totalChapters || 0;
+        const srvDone = data.chaptersDone || 0;
+        // Estimar total si aún no fue logueado (fallback: items en cola + actual + completados)
+        const estimatedTotal = srvTotal > 0 ? srvTotal : (srvDone + (data.queue || 0) + (data.current ? 1 : 0));
+        const capNum = data.currentChapterNum;
+        const capIdx = data.currentChapterIndex || (srvDone + 1);
+        const capLabel = capNum ? `Cap. ${capNum}` : (data.current ? "Procesando..." : "");
+
         if (data.status === "running" || data.status === "paused") {
-          if (totalChapters > 0) {
-            updateOverallProgress(completedChapters, totalChapters);
-            updateCurrentChapter(currentChapterInfo.name, currentChapterInfo.current, currentChapterInfo.total);
-          }
-        } else if (data.status === "done") {
-          if (totalChapters > 0) {
-            updateOverallProgress(totalChapters, totalChapters);
+          updateOverallProgress(srvDone, estimatedTotal, capIdx, estimatedTotal);
+          const pg = data.pageProgress;
+          if (capLabel) {
+            updateCurrentChapter(capLabel, pg && pg.total > 0 ? pg.uploaded : 0, pg && pg.total > 0 ? pg.total : 0);
+          } else {
             updateCurrentChapter("", 0, 0);
           }
-        } else if (data.status === "idle" || data.status === "stopped") {
-          // Reset del progreso cuando está idle
-          if (totalChapters === 0) {
-            progressSection.style.display = "none";
-          }
+        } else if (data.status === "done") {
+          if (estimatedTotal > 0) updateOverallProgress(estimatedTotal, estimatedTotal, estimatedTotal, estimatedTotal);
+          updateCurrentChapter("", 0, 0);
+        } else if (data.status === "stopped" || data.status === "error") {
+          updateCurrentChapter("", 0, 0);
         }
       } catch (err) {
         setStatus("error");
@@ -2225,7 +2156,6 @@
 
     // Event listeners para logs
     if (clearAllLogsBtn) clearAllLogsBtn.addEventListener("click", () => clearLogs('all'));
-    if (clearUploaderLogsBtn) clearUploaderLogsBtn.addEventListener("click", () => clearLogs('uploader'));
     if (clearNotificationLogsBtn) clearNotificationLogsBtn.addEventListener("click", () => clearLogs('notification'));
     if (clearQueueLogsBtn) clearQueueLogsBtn.addEventListener("click", () => clearLogs('queue'));
 

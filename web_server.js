@@ -561,6 +561,8 @@ function getJobState(sid) {
     currentPayload: null,
     currentProgressKey: null,
     uploads: [],
+    totalChapters: 0,
+    pageProgress: null,
   };
   if (job.queue.length > 0) {
     console.log(`[INFO] Cola restaurada para sesion ${sid.slice(0, 8)}...: ${job.queue.length} trabajos`);
@@ -808,6 +810,11 @@ function startNext(job) {
     }
 
     // Resetear capítulos rastreados para esta nueva subida
+    job.totalChapters = 0;
+    job.pageProgress = null;
+    job.currentChapterNum = null;
+    job.currentChapterIndex = 0;
+    job.chaptersPublished = 0;
     const progressEntry = getOrCreateUploadProgress(payload, job.sid);
     job.currentProgressKey = progressEntry.key;
     seedNotifyTrackerFromProgress(job, progressEntry);
@@ -854,6 +861,37 @@ function startNext(job) {
             recordCompletedChapterInProgress(job.currentProgressKey, capMatch[1]);
             recordAttemptedChapterInProgress(job.currentProgressKey, capMatch[1], "completed");
           }
+          job.pageProgress = null;
+        }
+        // Detectar publicación confirmada (antes de waitForPreviews) para actualizar barra de progreso
+        const isPublished = isOk && hasChapterTag && /Publicacion confirmada/i.test(line);
+        if (isPublished) {
+          job.chaptersPublished += 1;
+          // Marcar páginas como 100% completadas
+          if (job.pageProgress && job.pageProgress.total > 0) {
+            job.pageProgress = { uploaded: job.pageProgress.total, total: job.pageProgress.total };
+          }
+        }
+        // Progreso de barras: capítulo actual (prefijo [cap:X] en cualquier posición)
+        const capTagMatch = line.match(/\[cap:(\d+(?:[.,]\d+)?)\]/i);
+        if (capTagMatch && capTagMatch[1] !== job.currentChapterNum) {
+          job.currentChapterNum = capTagMatch[1];
+          job.currentChapterIndex = (job.chaptersPublished || 0) + 1;
+        }
+        // Progreso de barras: total de capítulos
+        const totalCapMatch = line.match(/quedan\s+(\d+)\s+cap[ií]tulos/i);
+        if (totalCapMatch && job.totalChapters === 0) {
+          job.totalChapters = parseInt(totalCapMatch[1], 10);
+        }
+        // Progreso de barras: total de páginas del capítulo actual
+        const pagesTotalMatch = line.match(/\[SUBIENDO\].*?confirmaci[oó]n de carga de\s+(\d+)\s+im[aá]genes/i);
+        if (pagesTotalMatch) {
+          job.pageProgress = { uploaded: 0, total: parseInt(pagesTotalMatch[1], 10) };
+        }
+        // Progreso de barras: páginas subidas actualmente
+        const pagesProgressMatch = line.match(/\[SUBIENDO\].*?Reporte de la web:\s*(\d+)\/(\d+)/i);
+        if (pagesProgressMatch) {
+          job.pageProgress = { uploaded: parseInt(pagesProgressMatch[1], 10), total: parseInt(pagesProgressMatch[2], 10) };
         }
       }
     });
@@ -942,6 +980,11 @@ app.get("/api/status", (req, res) => {
     endedAt: job.endedAt || null,
     queue: job.queue.length,
     current: job.current,
+    totalChapters: job.totalChapters || 0,
+    chaptersDone: job.chaptersPublished || 0,
+    currentChapterNum: job.currentChapterNum || null,
+    currentChapterIndex: job.currentChapterIndex || 0,
+    pageProgress: job.pageProgress || null,
     queueItems: job.queue.map((q, idx) => ({
       index: idx,
       resourceUrl: q.resourceUrl || "",
