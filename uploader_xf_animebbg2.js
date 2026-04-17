@@ -1527,19 +1527,14 @@ async function preprocessImages(images) {
     }
   }
 
-  // Si hay imagenes altas: guardar todo en subcarpeta persistente dentro del capitulo
+  // Siempre guardar en subcarpeta persistente dentro del capitulo
   // (el set completo queda disponible para resubida manual si algo falla)
-  // Si no: usar carpeta temporal como antes
-  let processedDir;
+  const chapterDir = path.dirname(images[0]);
+  const chapterName = path.basename(chapterDir);
+  const processedDir = path.join(chapterDir, chapterName);
+  ensureDir(processedDir);
   if (needsSlicing) {
-    const chapterDir = path.dirname(images[0]);
-    const chapterName = path.basename(chapterDir);
-    processedDir = path.join(chapterDir, chapterName);
-    ensureDir(processedDir);
     report(`[INFO] Imagenes altas detectadas. Set procesado guardado en: ${processedDir}`);
-  } else {
-    processedDir = path.join(os.tmpdir(), `xf_upload_${Date.now()}`);
-    ensureDir(processedDir);
   }
 
   const results = [];
@@ -1548,7 +1543,6 @@ async function preprocessImages(images) {
   report(`[INFO] Preprocesando ${images.length} imagenes...`);
   for (let i = 0; i < images.length; i++) {
     const src = images[i];
-    const ext = path.extname(src).toLowerCase();
     const meta = metadatas[i];
 
     try {
@@ -1566,18 +1560,14 @@ async function preprocessImages(images) {
         report(`[INFO] ${path.basename(src)} (${effectiveHeight}px) — dividiendo en partes de ${MAX_IMAGE_HEIGHT}px`);
         while (y < effectiveHeight) {
           const h = Math.min(MAX_IMAGE_HEIGHT, effectiveHeight - y);
-          const sliceDest = path.join(processedDir, `${String(fileCounter).padStart(4, "0")}${ext === ".webp" ? ".webp" : ".jpg"}`);
+          const sliceDest = path.join(processedDir, `${String(fileCounter).padStart(4, "0")}.webp`);
           let slicePipeline = sharp(src)
             .rotate()
             .extract({ left: 0, top: y, width: effectiveWidth, height: h });
           if (effectiveWidth > 3000) {
             slicePipeline = slicePipeline.resize(3000, null, { withoutEnlargement: true });
           }
-          if (ext === ".webp") {
-            await slicePipeline.webp({ quality: 82 }).toFile(sliceDest);
-          } else {
-            await slicePipeline.jpeg({ quality: 85, progressive: true, mozjpeg: true }).toFile(sliceDest);
-          }
+          await slicePipeline.webp({ quality: 82 }).toFile(sliceDest);
           results.push(sliceDest);
           fileCounter++;
           y += h;
@@ -1585,16 +1575,12 @@ async function preprocessImages(images) {
         }
         dbg(`${path.basename(src)}: ${partIndex} corte(s) generado(s)`);
       } else {
-        const dest = path.join(processedDir, `${String(fileCounter).padStart(4, "0")}${ext === ".webp" ? ".webp" : ".jpg"}`);
+        const dest = path.join(processedDir, `${String(fileCounter).padStart(4, "0")}.webp`);
         let pipeline = sharp(src).rotate(); // Corregir orientacion EXIF
         if (effectiveWidth > 3000) {
           pipeline = pipeline.resize(3000, null, { withoutEnlargement: true });
         }
-        if (ext === ".webp") {
-          await pipeline.webp({ quality: 82 }).toFile(dest);
-        } else {
-          await pipeline.jpeg({ quality: 85, progressive: true, mozjpeg: true }).toFile(dest);
-        }
+        await pipeline.webp({ quality: 82 }).toFile(dest);
         results.push(dest);
         fileCounter++;
       }

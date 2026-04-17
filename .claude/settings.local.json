@@ -4,7 +4,8 @@
       "Bash(taskkill:*)",
       "Bash(npm start)",
       "Bash(cmd /c \"d:/DD - Descargas/Typper/AnimeBbg/Script_JS_PythonLike - copia/build-portable-full.bat\")",
-      "Bash(cmd /c \"\"\"d:\\\\DD - Descargas\\\\Typper\\\\AnimeBbg\\\\Script_JS_PythonLike - copia\\\\build-portable-full.bat\"\"\")"
+      "Bash(cmd /c \"\"\"d:\\\\DD - Descargas\\\\Typper\\\\AnimeBbg\\\\Script_JS_PythonLike - copia\\\\build-portable-full.bat\"\"\")",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"D:\\\\\\\\DD - Descargas\\\\\\\\Typper\\\\\\\\AnimeBbg\\\\\\\\Script_JS_PythonLike - copia\\\\\\\\run_build.ps1\")"
     ]
   }
 }

@@ -3,13 +3,13 @@ setlocal EnableExtensions
 chcp 65001 >nul
 
 echo ========================================
-echo  Construyendo portable 05-04-26 (sin Node)
+echo  Construyendo portable 12-04-26 (sin Node)
 echo ========================================
 echo.
 
 set "ROOT=%~dp0"
 set "DIST_DIR=%ROOT%dist"
-set "OUT_DIR=%DIST_DIR%\AnimeBBG-Portable-05-04-26"
+set "OUT_DIR=%DIST_DIR%\AnimeBBG-Portable-12-04-26"
 set "PW_PATH=%ROOT%pw-browsers"
 set "NODE_PORTABLE_DIR=%ROOT%nodejs-portable"
 set "NODE_LOCAL=%NODE_PORTABLE_DIR%\node.exe"
@@ -180,7 +180,7 @@ echo start "" "http://localhost:3200"
 echo [7/8] Escribiendo guia de uso...
 (
 echo =====================================
-echo AnimeBBG Uploader - Portable 05-04-26
+echo AnimeBBG Uploader - Portable 12-04-26
 echo =====================================
 echo.
 echo Esta version ya incluye todo:
@@ -205,7 +205,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
   "$out='%OUT_DIR%';" ^
   "$parent=Split-Path $out -Parent;" ^
-  "$zip='%DIST_DIR%\AnimeBBG-Portable-05-04-26.zip';" ^
+  "$zip='%DIST_DIR%\AnimeBBG-Portable-12-04-26.zip';" ^
   "if (Test-Path $zip) { Remove-Item -Force $zip };" ^
   "Compress-Archive -Path $out -DestinationPath $zip -Force;"
 if errorlevel 1 (
@@ -214,10 +214,10 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
-echo  PORTABLE 05-04-26 LISTO
+echo  PORTABLE 12-04-26 LISTO
 echo ========================================
 echo Carpeta: %OUT_DIR%
-echo ZIP:     %DIST_DIR%\AnimeBBG-Portable-05-04-26.zip
+echo ZIP:     %DIST_DIR%\AnimeBBG-Portable-12-04-26.zip
 echo.
 echo Comparte el ZIP y el usuario solo ejecuta INICIAR-ANIMEBBG.bat
 echo.
